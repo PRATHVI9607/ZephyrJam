@@ -1,0 +1,14 @@
+# JamShield application Kconfig (sourced automatically by the Zephyr build).
+
+config JS_ESPNOW
+	bool "Enable ESP-NOW tertiary bearer"
+	default n
+	help
+	  Compile the ESP-NOW shim against the Espressif HAL (esp_now.h /
+	  esp_wifi.h) exposed by the Zephyr ESP32 port. Zephyr has no native
+	  ESP-NOW L2, so this depends on those HAL headers being available in
+	  the build. When disabled, espnow_l2.c builds as a logging stub and the
+	  bearer manager treats ESP-NOW as unavailable, keeping the WiFi+BLE
+	  failover path fully functional. See PRD.md Section 7.3.
+
+source "Kconfig.zephyr"

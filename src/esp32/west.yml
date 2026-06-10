@@ -1,0 +1,17 @@
+# West manifest for the JamShield ESP32 application.
+#
+# NOTE: This repo is built against the standalone Zephyr workspace created by
+# scripts/west_setup.sh (~/jamshield_workspace, Zephyr v3.6.0). This manifest is
+# provided so the app can also be used as a T2-topology manifest repo
+# (`west init -l src/esp32 && west update`) if desired.
+manifest:
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v3.6.0
+      import: true
+  self:
+    path: app

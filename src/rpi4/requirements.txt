@@ -1,0 +1,12 @@
+# JamShield RPi4 Python dependencies (install in a venv — see setup_rpi4.sh).
+paho-mqtt>=2.0
+bleak>=0.21
+scapy>=2.5
+fastapi>=0.110
+uvicorn>=0.29
+pandas>=2.0
+matplotlib>=3.7
+seaborn>=0.13
+rich>=13.0
+aiofiles>=23.0
+pyserial>=3.5

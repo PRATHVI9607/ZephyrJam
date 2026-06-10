@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build JamShield ESP32",
+            "type": "shell",
+            "command": "wsl -d Ubuntu -- bash -lc \"bash ~/jamshield_bootstrap/build.sh auto\"",
+            "problemMatcher": ["$gcc"],
+            "group": { "kind": "build", "isDefault": true },
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "Build JamShield ESP32 (pristine)",
+            "type": "shell",
+            "command": "wsl -d Ubuntu -- bash -lc \"bash ~/jamshield_bootstrap/build.sh always\"",
+            "problemMatcher": ["$gcc"],
+            "group": "build"
+        },
+        {
+            "label": "Flash ESP32",
+            "type": "shell",
+            "command": "wsl -d Ubuntu -- bash -lc \"tr -d '\\r' < /mnt/c/Workspace/IotELL/scripts/flash.sh | bash\"",
+            "group": "build"
+        },
+        {
+            "label": "Monitor Serial",
+            "type": "shell",
+            "command": "wsl -d Ubuntu -- bash -lc \"tr -d '\\r' < /mnt/c/Workspace/IotELL/scripts/monitor.sh | bash\"",
+            "group": "test"
+        }
+    ]
+}

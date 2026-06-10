@@ -1,0 +1,19 @@
+{
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "files.associations": {
+        "*.overlay": "dts",
+        "prj.conf": "properties",
+        "Kconfig": "kconfig",
+        "*.h": "c",
+        "*.c": "c"
+    },
+    "C_Cpp.default.cStandard": "c11",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/src/esp32/include",
+        "//wsl.localhost/Ubuntu/home/ippo/jamshield_workspace/zephyr/include",
+        "//wsl.localhost/Ubuntu/home/ippo/jamshield_build/esp32/zephyr/include/generated"
+    ],
+    "python.analysis.extraPaths": ["${workspaceFolder}/src/rpi4"],
+    "serial-monitor.baudRate": 115200
+}
