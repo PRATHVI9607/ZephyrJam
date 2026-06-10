@@ -109,19 +109,19 @@ static void on_jam_state(jam_state_t s)
 int conn_mgr_send(const struct ble_sensor_payload *bin, const char *json,
 		  size_t json_len)
 {
-	int ret;
-
 	demote_if_needed();
 
 	switch (active) {
 	case JS_CH_WIFI:
-		jam_detect_record_sent();
-		ret = wifi_mqtt_publish(JS_MQTT_TOPIC, json, json_len);
-		if (ret == -ENOTCONN) {
-			/* WiFi dropped out from under us: fail over now. */
-			trigger_bearer_failover();
+		/* While WiFi is still associating at boot, just skip the send.
+		 * Failover is driven exclusively by the jam detector, not by a
+		 * not-yet-connected primary bearer.
+		 */
+		if (!wifi_mqtt_is_connected()) {
+			return -ENOTCONN;
 		}
-		return ret;
+		jam_detect_record_sent();
+		return wifi_mqtt_publish(JS_MQTT_TOPIC, json, json_len);
 	case JS_CH_BLE:
 		return ble_gatt_send(bin);
 	case JS_CH_ESPNOW:

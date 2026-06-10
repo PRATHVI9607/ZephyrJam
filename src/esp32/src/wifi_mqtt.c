@@ -24,7 +24,11 @@ LOG_MODULE_REGISTER(wifi_mqtt, LOG_LEVEL_INF);
 /* ---- WiFi state --------------------------------------------------------- */
 static struct net_if *wifi_iface;
 static volatile bool wifi_l4_up;
+static volatile bool associating;
 static volatile int8_t last_rssi;
+static uint64_t last_connect_attempt;
+
+#define WIFI_RETRY_MS 5000
 
 static struct net_mgmt_event_callback wifi_cb;
 static struct net_mgmt_event_callback l4_cb;
@@ -82,13 +86,16 @@ static void wifi_evt_handler(struct net_mgmt_event_callback *cb, uint32_t event,
 	if (event == NET_EVENT_WIFI_CONNECT_RESULT) {
 		const struct wifi_status *st = (const struct wifi_status *)cb->info;
 
+		associating = false;
 		if (st && st->status) {
-			LOG_WRN("WiFi connect failed (status %d)", st->status);
+			LOG_WRN("WiFi connect failed (status %d), will retry",
+				st->status);
 		} else {
 			LOG_INF("WiFi associated to %s", JS_WIFI_SSID);
 		}
 	} else if (event == NET_EVENT_WIFI_DISCONNECT_RESULT) {
 		wifi_l4_up = false;
+		associating = false;
 		LOG_WRN("WiFi disassociated");
 	}
 }
@@ -107,10 +114,25 @@ static int do_wifi_connect(void)
 	params.band = WIFI_FREQ_BAND_2_4_GHZ;
 	params.mfp = WIFI_MFP_OPTIONAL;
 
+	/* The esp32 driver only accepts a connect once the iface is up and in
+	 * station mode; bring it up first (idempotent).
+	 */
+	if (!net_if_is_admin_up(wifi_iface)) {
+		int up = net_if_up(wifi_iface);
+
+		if (up) {
+			LOG_WRN("net_if_up failed: %d", up);
+		}
+	}
+
+	associating = true;
+	last_connect_attempt = k_uptime_get();
+
 	int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, wifi_iface, &params,
 			   sizeof(params));
 	if (ret) {
-		LOG_ERR("NET_REQUEST_WIFI_CONNECT failed: %d", ret);
+		associating = false;
+		LOG_WRN("WiFi connect request rejected (%d), will retry", ret);
 	}
 	return ret;
 }
@@ -128,8 +150,13 @@ int wifi_mqtt_connect(void)
 	net_mgmt_init_event_callback(&wifi_cb, wifi_evt_handler, WIFI_EVENTS);
 	net_mgmt_add_event_callback(&wifi_cb);
 
-	LOG_INF("Connecting to WiFi SSID '%s'...", JS_WIFI_SSID);
-	return do_wifi_connect();
+	/* Bring the station interface up; the periodic retry in
+	 * wifi_mqtt_process() drives association so we tolerate the AP not
+	 * being present yet and recover automatically when it appears.
+	 */
+	(void)net_if_up(wifi_iface);
+	LOG_INF("WiFi station up; will associate to SSID '%s'", JS_WIFI_SSID);
+	return 0;
 }
 
 void wifi_mqtt_disconnect(void)
@@ -248,6 +275,16 @@ int wifi_mqtt_publish(const char *topic, const char *payload, size_t len)
 
 void wifi_mqtt_process(void)
 {
+	/* Drive WiFi (re)association with a simple backoff while not connected. */
+	if (wifi_iface && !wifi_l4_up && !associating) {
+		uint64_t now = k_uptime_get();
+
+		if (last_connect_attempt == 0 ||
+		    (now - last_connect_attempt) > WIFI_RETRY_MS) {
+			(void)do_wifi_connect();
+		}
+	}
+
 	/* Establish MQTT once WiFi (L4) is up. */
 	if (wifi_l4_up && !mqtt_connected) {
 		if (mqtt_session_start() != 0) {
