@@ -29,6 +29,12 @@ bool wifi_mqtt_is_connected(void);
 /* Last RSSI sampled from the WiFi interface (dBm); 0 if unknown. */
 int8_t wifi_mqtt_get_rssi(void);
 
+/* Manual failover trigger for testing/experiments: true while a "JAM" command
+ * has been received on the MQTT control topic (cleared by "CLEAR"). The jam
+ * detector treats this as sustained degradation so the real failover FSM runs.
+ */
+bool wifi_mqtt_force_jam(void);
+
 /* Must be pumped regularly to service MQTT keepalive / RX (called by payload thread). */
 void wifi_mqtt_process(void);
 

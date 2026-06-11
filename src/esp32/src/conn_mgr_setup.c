@@ -18,7 +18,7 @@
 #include "ble_gatt.h"
 #include "espnow_l2.h"
 
-LOG_MODULE_REGISTER(conn_mgr, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(bearer_mgr, LOG_LEVEL_INF);
 
 static volatile enum js_channel active = JS_CH_WIFI;
 static uint64_t last_switch_ms;

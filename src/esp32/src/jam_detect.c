@@ -129,9 +129,10 @@ static void jam_thread_fn(void *p1, void *p2, void *p3)
 	while (1) {
 		int8_t rssi = wifi_mqtt_get_rssi();
 		uint8_t loss = compute_loss_percentage();
-		bool degraded = (rssi != 0) &&
-				(rssi < js_thresholds.rssi_threshold) &&
-				(loss > js_thresholds.loss_threshold);
+		bool degraded = wifi_mqtt_force_jam() ||
+				((rssi != 0) &&
+				 (rssi < js_thresholds.rssi_threshold) &&
+				 (loss > js_thresholds.loss_threshold));
 
 		cur_rssi = rssi;
 		cur_loss_pct = loss;
@@ -171,8 +172,10 @@ static void jam_thread_fn(void *p1, void *p2, void *p3)
 		}
 
 		case JAM_STATE_CONFIRMED:
-			/* Watch for cessation: RSSI recovering and loss low. */
-			if (rssi != 0 &&
+			/* Watch for cessation: RSSI recovering and loss low (and no
+			 * manual force-jam still held).
+			 */
+			if (!wifi_mqtt_force_jam() && rssi != 0 &&
 			    rssi > (js_thresholds.rssi_threshold - 10) &&
 			    loss < 5U) {
 				set_state(JAM_STATE_RECOVERING);

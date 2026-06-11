@@ -39,9 +39,9 @@ BUILD_ASSERT(sizeof(struct ble_sensor_payload) == 18,
 	     "ble_sensor_payload must be exactly 18 bytes on the wire");
 
 /* ---- Project-wide configuration ----------------------------------------- */
-#define JS_WIFI_SSID        "JamShield-AP"
-#define JS_WIFI_PSK         "jamshield2024"
-#define JS_MQTT_BROKER_IP   "192.168.4.1"   /* RPi4 hostapd gateway */
+#define JS_WIFI_SSID        "Loki"
+#define JS_WIFI_PSK         "loki2536"
+#define JS_MQTT_BROKER_IP   "10.88.34.137"  /* RPi4 on the LAN (broker) */
 #define JS_MQTT_BROKER_PORT 1883
 #define JS_MQTT_TOPIC       "jamshield/sensor/ldr"
 #define JS_MQTT_EVENT_TOPIC "jamshield/events/failover"

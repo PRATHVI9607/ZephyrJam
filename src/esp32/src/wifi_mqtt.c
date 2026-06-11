@@ -8,7 +8,9 @@
  */
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <errno.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/wifi_mgmt.h>
@@ -42,7 +44,27 @@ static struct sockaddr_storage broker;
 static uint8_t rx_buffer[512];
 static uint8_t tx_buffer[512];
 static volatile bool mqtt_connected;
+static volatile bool mqtt_attempting;
+static volatile bool mqtt_subscribed;
+static volatile bool force_jam;
+static uint64_t mqtt_attempt_ms;
 static struct zsock_pollfd fds[1];
+
+#define MQTT_CONNACK_TIMEOUT_MS 5000
+#define JS_CONTROL_TOPIC        "jamshield/control"
+/* A forced jam auto-expires so the node recovers even when the inbound link is
+ * unavailable during BLE failover (and as a safety bound for experiments). */
+#define FORCE_JAM_MAX_MS        15000
+
+static uint64_t force_jam_ms;
+
+bool wifi_mqtt_force_jam(void)
+{
+	if (force_jam && (k_uptime_get() - force_jam_ms) > FORCE_JAM_MAX_MS) {
+		force_jam = false;
+	}
+	return force_jam;
+}
 
 static struct net_if *get_wifi_iface(void)
 {
@@ -64,10 +86,21 @@ static void l4_evt_handler(struct net_mgmt_event_callback *cb, uint32_t event,
 	ARG_UNUSED(iface);
 
 	switch (event) {
-	case NET_EVENT_L4_CONNECTED:
+	case NET_EVENT_L4_CONNECTED: {
 		wifi_l4_up = true;
-		LOG_INF("WiFi L4 connected (IP up) at t=%lld ms", k_uptime_get());
+		struct in_addr *a = wifi_iface ?
+			net_if_ipv4_get_global_addr(wifi_iface, NET_ADDR_PREFERRED) :
+			NULL;
+		char ip[NET_IPV4_ADDR_LEN] = "none";
+
+		if (a) {
+			(void)net_addr_ntop(AF_INET, a, ip, sizeof(ip));
+		}
+		LOG_INF("WiFi L4 connected: IP=%s, broker=%s:%d (t=%lld ms)",
+			ip, JS_MQTT_BROKER_IP, JS_MQTT_BROKER_PORT,
+			k_uptime_get());
 		break;
+	}
 	case NET_EVENT_L4_DISCONNECTED:
 		wifi_l4_up = false;
 		mqtt_connected = false;
@@ -178,6 +211,7 @@ static void mqtt_evt_handler(struct mqtt_client *c, const struct mqtt_evt *evt)
 
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
+		mqtt_attempting = false;
 		if (evt->result == 0) {
 			mqtt_connected = true;
 			LOG_INF("MQTT connected to broker %s", JS_MQTT_BROKER_IP);
@@ -187,12 +221,40 @@ static void mqtt_evt_handler(struct mqtt_client *c, const struct mqtt_evt *evt)
 		break;
 	case MQTT_EVT_DISCONNECT:
 		mqtt_connected = false;
+		mqtt_attempting = false;
+		mqtt_subscribed = false;
 		LOG_WRN("MQTT disconnected");
 		break;
 	case MQTT_EVT_PUBACK:
 		/* QoS1 acknowledged -> counts as a delivered packet. */
 		jam_detect_record_acked();
 		break;
+	case MQTT_EVT_SUBACK:
+		LOG_INF("Subscribed to %s", JS_CONTROL_TOPIC);
+		break;
+	case MQTT_EVT_PUBLISH: {
+		/* Control message: "JAM" forces failover, "CLEAR" recovers. */
+		const struct mqtt_publish_param *pp = &evt->param.publish;
+		uint8_t buf[32];
+		uint32_t len = pp->message.payload.len;
+
+		if (len >= sizeof(buf)) {
+			len = sizeof(buf) - 1;
+		}
+		int r = mqtt_read_publish_payload(c, buf, len);
+
+		if (r > 0) {
+			buf[r] = '\0';
+			if (strstr((char *)buf, "JAM")) {
+				force_jam = true;
+				force_jam_ms = k_uptime_get();
+			} else if (strstr((char *)buf, "CLEAR")) {
+				force_jam = false;
+			}
+			LOG_WRN("control rx '%s' -> force_jam=%d", buf, force_jam);
+		}
+		break;
+	}
 	default:
 		break;
 	}
@@ -285,24 +347,57 @@ void wifi_mqtt_process(void)
 		}
 	}
 
-	/* Establish MQTT once WiFi (L4) is up. */
-	if (wifi_l4_up && !mqtt_connected) {
-		if (mqtt_session_start() != 0) {
-			return;
-		}
-	}
-
-	if (!mqtt_connected && client.transport.tcp.sock <= 0) {
+	if (!wifi_l4_up) {
 		return;
 	}
 
-	/* Service the socket and keepalive. */
+	/* Initiate the MQTT session exactly once, then pump the socket until the
+	 * broker's CONNACK arrives (which sets mqtt_connected). Re-initiating
+	 * every cycle would leak sockets, so we gate on mqtt_attempting.
+	 */
+	if (!mqtt_connected && !mqtt_attempting) {
+		if (mqtt_session_start() == 0) {
+			mqtt_attempting = true;
+			mqtt_attempt_ms = k_uptime_get();
+		}
+		return;
+	}
+
+	/* Subscribe to the control topic once, after the session is up. */
+	if (mqtt_connected && !mqtt_subscribed) {
+		struct mqtt_topic topic = {
+			.topic = {
+				.utf8 = (uint8_t *)JS_CONTROL_TOPIC,
+				.size = sizeof(JS_CONTROL_TOPIC) - 1,
+			},
+			.qos = MQTT_QOS_0_AT_MOST_ONCE,
+		};
+		struct mqtt_subscription_list sub = {
+			.list = &topic,
+			.list_count = 1,
+			.message_id = next_msg_id(),
+		};
+
+		if (mqtt_subscribe(&client, &sub) == 0) {
+			mqtt_subscribed = true;
+		}
+	}
+
+	/* Service the socket: receive CONNACK/PUBACK and run keepalive. */
 	int rc = zsock_poll(fds, 1, 0);
 
 	if (rc > 0 && (fds[0].revents & ZSOCK_POLLIN)) {
 		(void)mqtt_input(&client);
 	}
 	(void)mqtt_live(&client);
+
+	/* If CONNACK never arrives, tear down and retry on the next cycle. */
+	if (mqtt_attempting && !mqtt_connected &&
+	    (k_uptime_get() - mqtt_attempt_ms) > MQTT_CONNACK_TIMEOUT_MS) {
+		LOG_WRN("MQTT CONNACK timeout; retrying");
+		(void)mqtt_abort(&client);
+		mqtt_attempting = false;
+	}
 }
 
 bool wifi_mqtt_is_connected(void)

@@ -14,21 +14,46 @@ phase plan.
 
 ---
 
-## Status
+## Status — VERIFIED END-TO-END ON HARDWARE ✅
 
 | Component | State |
 |---|---|
 | WSL2 Zephyr toolchain (west, SDK 0.16.8, xtensa, RF blobs) | ✅ installed |
-| ESP32 firmware (LDR, WiFi+MQTT, jam-detect, BLE, bearer FSM, payload) | ✅ **builds clean → `zephyr.bin`** |
-| ESP-NOW tertiary bearer | ⚙️ written, gated `CONFIG_JS_ESPNOW=n` (see notes) |
-| RPi4 receiver stack (MQTT + BLE + ESP-NOW → SQLite) | ✅ written |
-| RPi4 setup script (hostapd AP, Mosquitto, dnsmasq, venv) | ✅ written |
-| Flashing to hardware | ⏸ needs ESP32 connected (`usbipd` installed) |
-| RPi4 live test, jammer, experiments, paper | ⏸ needs hardware |
+| ESP32 firmware (LDR, WiFi+MQTT, jam-detect, BLE, bearer FSM, payload) | ✅ builds clean, **runs on real ESP32** |
+| WiFi → MQTT → SQLite pipeline | ✅ **317 WIFI packets logged on the Pi** |
+| Jamming detection FSM | ✅ **detection latency 202 ms** (within the 325 ms WCET bound) |
+| WiFi → BLE failover | ✅ **506–594 ms**, BLE packets reach the Pi (**224 BLE packets**) |
+| BLE → WiFi recovery | ✅ auto-recovers (`Jamming CEASING` → `WiFi RESTORED`) |
+| RPi4 receiver (MQTT + BLE → SQLite) | ✅ running as `jamshield-recv` systemd service |
+| Mosquitto broker on Pi | ✅ active on `0.0.0.0:1883` |
+| ESP-NOW tertiary bearer | ⚙️ written, gated `CONFIG_JS_ESPNOW=n` (HAL present; DRAM-bound) |
+| Jammer board, formal experiments, paper | ⏸ needs 2nd ESP32 / data collection |
 
-The firmware compiles with **zero errors**. Build artifact:
-`~/jamshield_build/esp32/zephyr/zephyr.bin`. ESP32 RAM usage is ~92–93% of
-DRAM (WiFi + BLE + net + mbedTLS coexisting), which is valid but tight.
+### Deployed topology (LAN variant)
+ESP32, laptop, and Pi all join the home WiFi **`Loki`** (2.4 GHz). The Pi runs
+the Mosquitto broker at **`10.88.34.137:1883`** and the receiver. (The PRD's
+dedicated-AP topology needs a USB WiFi dongle or ethernet on the Pi for
+management — deferred; see notes.)
+
+### Manual failover trigger (for demos / experiments)
+Publish to the control topic to exercise the real failover FSM:
+```bash
+mosquitto_pub -h 10.88.34.137 -t jamshield/control -m JAM     # WiFi -> BLE
+mosquitto_pub -h 10.88.34.137 -t jamshield/control -m CLEAR   # recover (or auto-expires after 15s)
+```
+
+### Flashing — from Windows over COM (no usbipd needed)
+usbipd proved unreliable on this machine, so the firmware is flashed directly
+with Windows esptool on the CP210x COM port:
+```powershell
+wsl -d Ubuntu -- bash -lc "bash ~/jamshield_bootstrap/build.sh auto && tr -d '\r' < /mnt/c/Workspace/IotELL/scripts/copy_flash.sh | bash"
+python -m esptool --chip esp32 -p COM6 -b 460800 write_flash --flash_size detect `
+  0x1000 flash\bootloader.bin 0x8000 flash\partition-table.bin 0x10000 flash\zephyr.bin
+python scripts\capture_win.py COM6 16          # serial monitor (resets board on open)
+```
+
+> ⚠️ **Security note:** `src/esp32/include/jamshield.h` currently hardcodes the
+> WiFi SSID/password. Parameterize or gitignore before committing/sharing.
 
 ---
 

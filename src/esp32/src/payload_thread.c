@@ -40,16 +40,25 @@ static const char *jam_state_str(jam_state_t s)
 	}
 }
 
-/* Average CPU utilisation since boot, integer percent (best effort). */
+/* Instantaneous CPU utilisation between calls, integer percent 0-100. */
 static uint8_t cpu_util_pct(void)
 {
 #if defined(CONFIG_SCHED_THREAD_USAGE)
+	static uint64_t prev_exec, prev_total;
 	k_thread_runtime_stats_t stats;
 
-	if (k_thread_runtime_stats_all_get(&stats) == 0 &&
-	    stats.total_cycles > 0) {
-		return (uint8_t)((stats.execution_cycles * 100ULL) /
-				 stats.total_cycles);
+	if (k_thread_runtime_stats_all_get(&stats) == 0) {
+		uint64_t d_exec = stats.execution_cycles - prev_exec;
+		uint64_t d_total = stats.total_cycles - prev_total;
+
+		prev_exec = stats.execution_cycles;
+		prev_total = stats.total_cycles;
+
+		if (d_total > 0) {
+			uint64_t pct = (d_exec * 100ULL) / d_total;
+
+			return pct > 100ULL ? 100U : (uint8_t)pct;
+		}
 	}
 #endif
 	return 0;

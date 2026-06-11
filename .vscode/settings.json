@@ -15,5 +15,6 @@
         "//wsl.localhost/Ubuntu/home/ippo/jamshield_build/esp32/zephyr/include/generated"
     ],
     "python.analysis.extraPaths": ["${workspaceFolder}/src/rpi4"],
-    "serial-monitor.baudRate": 115200
+    "serial-monitor.baudRate": 115200,
+    "cmake.sourceDirectory": "C:/Workspace/IotELL/src/esp32"
 }
