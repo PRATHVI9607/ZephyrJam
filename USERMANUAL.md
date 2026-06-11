@@ -82,6 +82,69 @@ To find the Pi's IP: `ping -4 prathvi.local` (Windows) or `hostname -I` on the P
 
 ---
 
+## 3A. ⭐ What to change when your network changes (READ THIS)
+
+Most "it stopped working" situations are network changes, not code. There are
+only **three** configurable things, and only **two** of them require a reflash.
+
+### The golden rule: the ESP32 needs a **2.4 GHz** network
+The ESP32 radio is **2.4 GHz only**. It **cannot** join a 5 GHz SSID (e.g.
+`Loki_5G`). If only 5 GHz networks are visible, the ESP32 will loop on
+`WiFi disassociated` forever. On a phone hotspot, set **AP Band = 2.4 GHz**.
+
+### Decision table — "if this changes, do that"
+
+| What changed | Symptom on serial | What to do | Reflash? |
+|---|---|---|---|
+| **WiFi SSID or password** | `WiFi disassociated` every ~5 s | Edit `JS_WIFI_SSID` / `JS_WIFI_PSK` in `src/esp32/include/jamshield.h` → rebuild + reflash | **Yes** |
+| **Only 5 GHz available** | `WiFi disassociated` every ~5 s | Turn on a **2.4 GHz** network (hotspot band → 2.4 GHz); no edit needed if the SSID name matches | No |
+| **The Pi's IP changed** | `mqtt_connect failed: -116` (timeout), WiFi *is* connected | Edit `JS_MQTT_BROKER_IP` in `jamshield.h` to the Pi's new IP → rebuild + reflash | **Yes** |
+| **Pi is offline / not on WiFi** | `mqtt_connect failed: -116`, host `10.88.34.137` unreachable | Power on the Pi, get it on the **same** network; services auto-start | No |
+| **ESP32 USB port changed** | esptool can't open the port | Find the new port: `[System.IO.Ports.SerialPort]::GetPortNames()`; use it in the flash/monitor commands | No (just use the new `COMx`) |
+
+### Quick diagnosis from the serial monitor
+- `WiFi disassociated` (looping) → **WiFi problem** (wrong SSID/password, or it's 5 GHz, or out of range).
+- `WiFi associated to <SSID>` then `mqtt_connect failed: -116` → **WiFi is fine; the broker/Pi is unreachable** (Pi offline or wrong IP).
+- `MQTT connected to broker` → all good.
+
+### How to apply a firmware config change (SSID / password / broker IP)
+1. Edit the values in `src/esp32/include/jamshield.h`.
+2. Rebuild, stage images, and reflash (replace `COM6` with your port):
+   ```powershell
+   wsl -d Ubuntu -- bash -lc "bash ~/jamshield_bootstrap/build.sh auto && tr -d '\r' < /mnt/c/Workspace/IotELL/scripts/copy_flash.sh | bash"
+   python -m esptool --chip esp32 -p COM6 -b 460800 write_flash --flash_size detect `
+     0x1000 C:\Workspace\IotELL\flash\bootloader.bin `
+     0x8000 C:\Workspace\IotELL\flash\partition-table.bin `
+     0x10000 C:\Workspace\IotELL\flash\zephyr.bin
+   ```
+3. Confirm with the serial monitor (USERMANUAL §4.4): you want
+   `WiFi associated...` then `MQTT connected to broker`.
+
+### If you move the Raspberry Pi to a new network
+The Pi has **no** hardcoded network in this project (it uses normal Raspberry Pi
+WiFi). To put it on a new WiFi:
+- Easiest: `sudo raspi-config` → System Options → Wireless LAN, **or**
+  `nmcli device wifi connect "<SSID>" password "<password>"` on the Pi.
+- Then get its new IP: `hostname -I`. If that IP differs from
+  `JS_MQTT_BROKER_IP`, update the firmware (table row above) and reflash.
+- The broker (`mosquitto`) and receiver (`jamshield-recv`) **auto-start on boot**
+  — no manual restart needed once it's on the network.
+
+### 🛡️ Make this bullet-proof for demos (do once)
+Pin the Pi's address so it never changes:
+- **DHCP reservation** on your router/hotspot for the Pi's MAC → always the same IP, **or**
+- **Static IP on the Pi** (`sudo nmcli con mod <conn> ipv4.addresses 10.88.34.137/24 ipv4.method manual ...`).
+
+Then the firmware's `JS_MQTT_BROKER_IP` is always correct and you never reflash
+for the broker IP again — you only ever need the **2.4 GHz network up** and the
+**Pi powered on**.
+
+### What never needs changing
+Sensor topic, control topic, BLE device name, the receiver code, and the systemd
+services are fixed — you don't touch them when the network changes.
+
+---
+
 ## 4. Build & flash the ESP32
 
 ### 4.1 Build (in WSL) and stage the images for Windows
