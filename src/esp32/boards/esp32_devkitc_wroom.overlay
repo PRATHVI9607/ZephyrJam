@@ -13,6 +13,7 @@
 
 	aliases {
 		led0 = &led_builtin;
+		sw0 = &boot_button;
 	};
 
 	leds {
@@ -20,6 +21,16 @@
 		led_builtin: led_0 {
 			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
 			label = "Built-in LED";
+		};
+	};
+
+	/* On-board BOOT button (GPIO0) reused at runtime as a manual jam trigger. */
+	buttons {
+		compatible = "gpio-keys";
+		boot_button: button_0 {
+			gpios = <&gpio0 0 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+			label = "BOOT button (jam trigger)";
+			zephyr,code = <0>;
 		};
 	};
 };

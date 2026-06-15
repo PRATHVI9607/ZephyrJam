@@ -13,6 +13,9 @@ target_sources(app PRIVATE
     src/espnow_l2.c
     src/conn_mgr_setup.c
     src/payload_thread.c
+    src/esp_ps_shim.c
+    src/button.c
+    src/control.c
 )
 
 target_include_directories(app PRIVATE include)

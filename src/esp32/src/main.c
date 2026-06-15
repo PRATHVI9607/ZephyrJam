@@ -25,6 +25,10 @@ LOG_MODULE_REGISTER(jamshield, LOG_LEVEL_INF);
 
 /* Defined in payload_thread.c */
 int payload_thread_start(void);
+/* Defined in button.c */
+int button_init(void);
+/* Defined in control.c */
+int control_init(void);
 
 int main(void)
 {
@@ -48,6 +52,8 @@ int main(void)
 	(void)conn_mgr_setup_init();
 	(void)jam_detect_init();
 	(void)payload_thread_start();
+	(void)button_init();
+	(void)control_init();
 
 	LOG_INF("==== JamShield init complete ====");
 

@@ -103,11 +103,24 @@ static void payload_thread_fn(void *p1, void *p2, void *p3)
 			lux_x10 / 10U, lux_x10 % 10U, rssi, cpu, 0U,
 			jam_state_str(js));
 
+		int rc = -1;
+
 		if (n > 0 && n < (int)sizeof(json)) {
-			(void)conn_mgr_send(&bin, json, (size_t)n);
+			rc = conn_mgr_send(&bin, json, (size_t)n);
 		} else {
 			LOG_ERR("payload JSON truncated (%d)", n);
 		}
+
+		/* Machine-readable status line for the USB dashboard. 'deliv' = 1 if
+		 * the packet was handed to a live bearer this cycle (0 = dropped,
+		 * e.g. jammed in NO-HOP mode). printk keeps it on one clean line.
+		 */
+		printk("STAT {\"mode\":\"%s\",\"ch\":\"%s\",\"jam\":\"%s\",\"seq\":%u,"
+		       "\"rssi\":%d,\"loss\":%u,\"wifi\":%d,\"deliv\":%d,\"ldr\":%u}\n",
+		       js_mode_str(js_mode_get()), js_channel_str(ch),
+		       jam_state_str(js), seq, rssi, jam_detect_get_loss_pct(),
+		       wifi_mqtt_is_connected() ? 1 : 0, rc == 0 ? 1 : 0,
+		       ldr.adc_raw);
 
 		k_msleep(PAYLOAD_PERIOD_MS);
 	}

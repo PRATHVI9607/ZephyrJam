@@ -46,14 +46,23 @@ def connect(force_password=False):
 
 
 def run(cmd):
+    """Run a remote command and STREAM its output live (works for long-running
+    commands like the demo dashboard, not just ones that exit)."""
     c = connect()
-    _, out, err = c.exec_command(cmd, timeout=600, get_pty=False)
-    so = out.read().decode(errors="replace")
-    se = err.read().decode(errors="replace")
-    rc = out.channel.recv_exit_status()
-    sys.stdout.write(so)
-    if se.strip():
-        sys.stderr.write(se)
+    chan = c.get_transport().open_session()
+    chan.set_combine_stderr(True)
+    chan.exec_command(cmd)
+    try:
+        while True:
+            data = chan.recv(4096)
+            if not data:
+                break
+            sys.stdout.write(data.decode(errors="replace"))
+            sys.stdout.flush()
+    except KeyboardInterrupt:
+        c.close()
+        sys.exit(0)
+    rc = chan.recv_exit_status()
     c.close()
     sys.exit(rc)
 

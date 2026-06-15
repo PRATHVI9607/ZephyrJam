@@ -14,6 +14,33 @@ phase plan.
 
 ---
 
+## ▶ Quick start — live demo with dashboard
+
+Two ESP32s (node on **COM6**, jammer on **COM7**) + the Pi on the same 2.4 GHz
+WiFi. One command builds + flashes both and opens the live dashboard:
+
+```powershell
+.\run.ps1
+```
+
+In the dashboard (http://127.0.0.1:8080) you control everything over USB:
+
+| Mode | On jam |
+|---|---|
+| **HOP** (default) | WiFi → **BLE** → ESP‑NOW failover, **keeps delivering** |
+| **NO‑HOP** | stays on WiFi, **packets stop** (shows the unprotected problem) |
+| **NO‑BLE** | WiFi → **ESP‑NOW** (skips BLE) |
+
+Plus a **START/STOP JAMMER** button (ESP32 #2). The dashboard shows the live
+active channel, data-delivery status, jam state, per-channel counts, and a
+colour timeline. Full runbook: **[DEMO.md](DEMO.md)**.
+
+> The dashboard reads/controls the boards over **USB serial** (reliable). The jam
+> is asserted on the control channel **and** the RF jammer fires; the node runs
+> its *real* detection → failover → recovery FSM either way.
+
+---
+
 ## 🗺️ System Architecture & How It Works
 
 ### 1) System data flow — sensor node ➜ three radios ➜ Raspberry Pi

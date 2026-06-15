@@ -1,0 +1,4 @@
+/* Jammer needs the WiFi peripheral enabled for raw 802.11 TX. */
+&wifi {
+	status = "okay";
+};

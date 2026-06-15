@@ -129,7 +129,11 @@ static void jam_thread_fn(void *p1, void *p2, void *p3)
 	while (1) {
 		int8_t rssi = wifi_mqtt_get_rssi();
 		uint8_t loss = compute_loss_percentage();
-		bool degraded = wifi_mqtt_force_jam() ||
+		/* A real jam usually shows up as loss of the WiFi/broker link after
+		 * we had been connected — treat that as degradation too. */
+		bool conn_lost = wifi_mqtt_was_connected() &&
+				 !wifi_mqtt_is_connected();
+		bool degraded = wifi_mqtt_force_jam() || conn_lost ||
 				((rssi != 0) &&
 				 (rssi < js_thresholds.rssi_threshold) &&
 				 (loss > js_thresholds.loss_threshold));
@@ -143,8 +147,8 @@ static void jam_thread_fn(void *p1, void *p2, void *p3)
 				consecutive = 1;
 				suspected_at = k_uptime_get();
 				set_state(JAM_STATE_SUSPECTED);
-				LOG_WRN("Jamming SUSPECTED: RSSI=%d loss=%u%%",
-					rssi, loss);
+				LOG_WRN("Jamming SUSPECTED: RSSI=%d loss=%u%% connlost=%d",
+					rssi, loss, conn_lost);
 			}
 			break;
 
@@ -172,20 +176,17 @@ static void jam_thread_fn(void *p1, void *p2, void *p3)
 		}
 
 		case JAM_STATE_CONFIRMED:
-			/* Watch for cessation: RSSI recovering and loss low (and no
-			 * manual force-jam still held).
-			 */
-			if (!wifi_mqtt_force_jam() && rssi != 0 &&
-			    rssi > (js_thresholds.rssi_threshold - 10) &&
-			    loss < 5U) {
+			/* Jam ceasing once degradation clears. */
+			if (!degraded) {
 				set_state(JAM_STATE_RECOVERING);
 				LOG_INF("Jamming CEASING, attempting restore");
 			}
 			break;
 
 		case JAM_STATE_RECOVERING:
-			if (wifi_mqtt_is_connected() && rssi != 0 &&
-			    rssi >= js_thresholds.rssi_threshold) {
+			if (degraded) {
+				set_state(JAM_STATE_CONFIRMED); /* re-jammed */
+			} else if (wifi_mqtt_is_connected()) {
 				consecutive = 0;
 				set_state(JAM_STATE_CLEAR);
 				LOG_INF("WiFi RESTORED");

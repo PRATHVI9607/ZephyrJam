@@ -14,6 +14,17 @@
 #include "jamshield.h"
 #include "jam_detect.h"
 
+/* Operating modes (switchable at runtime over USB serial from the dashboard). */
+enum js_mode {
+	JS_MODE_HOP   = 0, /* full failover WiFi -> BLE -> ESP-NOW (normal)     */
+	JS_MODE_NOHOP = 1, /* stay on WiFi; when jammed, packets stop (problem) */
+	JS_MODE_NOBLE = 2, /* failover skips BLE: WiFi -> ESP-NOW               */
+};
+
+void          js_mode_set(enum js_mode m);
+enum js_mode  js_mode_get(void);
+const char   *js_mode_str(enum js_mode m);
+
 /* Initialize the bearer manager: subscribe to WiFi L4 events and arm the
  * jam-detection callback that drives failover. Returns 0 on success.
  */

@@ -21,7 +21,33 @@
 LOG_MODULE_REGISTER(bearer_mgr, LOG_LEVEL_INF);
 
 static volatile enum js_channel active = JS_CH_WIFI;
+static volatile enum js_mode mode = JS_MODE_HOP;
 static uint64_t last_switch_ms;
+
+const char *js_mode_str(enum js_mode m)
+{
+	switch (m) {
+	case JS_MODE_HOP:   return "HOP";
+	case JS_MODE_NOHOP: return "NOHOP";
+	case JS_MODE_NOBLE: return "NOBLE";
+	default:            return "?";
+	}
+}
+
+enum js_mode js_mode_get(void)
+{
+	return mode;
+}
+
+void js_mode_set(enum js_mode m)
+{
+	mode = m;
+	LOG_WRN("MODE set to %s", js_mode_str(m));
+	/* Returning to HOP/normal: if no jam, make sure we're back on WiFi. */
+	if (m != JS_MODE_NOHOP) {
+		attempt_wifi_restore();
+	}
+}
 
 const char *js_channel_str(enum js_channel ch)
 {
@@ -62,7 +88,21 @@ static void switch_to(enum js_channel to, const char *why)
 
 void trigger_bearer_failover(void)
 {
-	/* Pick the highest-priority bearer below WiFi that is currently usable. */
+	if (mode == JS_MODE_NOHOP) {
+		/* Protection OFF: demonstrate the problem — stay on WiFi and let
+		 * packets drop while jammed. No failover.
+		 */
+		LOG_WRN("Jam detected, mode=NOHOP: staying on WiFi, packets DROPPING");
+		return;
+	}
+
+	if (mode == JS_MODE_NOBLE) {
+		/* Skip BLE entirely: WiFi -> ESP-NOW. */
+		switch_to(JS_CH_ESPNOW, "jam confirmed, NOBLE -> ESP-NOW");
+		return;
+	}
+
+	/* HOP: highest-priority bearer below WiFi that is currently usable. */
 	if (ble_gatt_is_connected()) {
 		switch_to(JS_CH_BLE, "jam confirmed, BLE up");
 	} else if (espnow_l2_is_ready()) {
@@ -85,8 +125,8 @@ void attempt_wifi_restore(void)
 /* Demote one tier when the current fallback also fails. */
 static void demote_if_needed(void)
 {
-	if (active == JS_CH_BLE && !ble_gatt_is_connected() &&
-	    espnow_l2_is_ready()) {
+	if (mode == JS_MODE_HOP && active == JS_CH_BLE &&
+	    !ble_gatt_is_connected() && espnow_l2_is_ready()) {
 		switch_to(JS_CH_ESPNOW, "BLE lost");
 	}
 }
@@ -113,11 +153,12 @@ int conn_mgr_send(const struct ble_sensor_payload *bin, const char *json,
 
 	switch (active) {
 	case JS_CH_WIFI:
-		/* While WiFi is still associating at boot, just skip the send.
-		 * Failover is driven exclusively by the jam detector, not by a
-		 * not-yet-connected primary bearer.
+		/* WiFi can't deliver if it's down OR jammed. In NO-HOP mode the
+		 * bearer stays WiFi, so this makes packets visibly drop while
+		 * jammed (the "unprotected" demo). In HOP/NO-BLE we've already
+		 * switched bearers, so this path isn't taken once failed over.
 		 */
-		if (!wifi_mqtt_is_connected()) {
+		if (!wifi_mqtt_is_connected() || wifi_mqtt_force_jam()) {
 			return -ENOTCONN;
 		}
 		jam_detect_record_sent();
@@ -136,6 +177,7 @@ int conn_mgr_setup_init(void)
 	jam_detect_register_callback(on_jam_state);
 	active = JS_CH_WIFI;
 	last_switch_ms = k_uptime_get();
-	LOG_INF("Bearer manager ready (active=%s)", js_channel_str(active));
+	LOG_INF("Bearer manager ready (active=%s mode=%s)",
+		js_channel_str(active), js_mode_str(mode));
 	return 0;
 }

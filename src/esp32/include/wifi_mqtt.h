@@ -26,6 +26,10 @@ int wifi_mqtt_publish(const char *topic, const char *payload, size_t len);
 /* True once both WiFi (L4) and MQTT are connected. */
 bool wifi_mqtt_is_connected(void);
 
+/* True once the node has connected to the broker at least once (so a later
+ * disconnect can be interpreted as a real jam, not a cold start). */
+bool wifi_mqtt_was_connected(void);
+
 /* Last RSSI sampled from the WiFi interface (dBm); 0 if unknown. */
 int8_t wifi_mqtt_get_rssi(void);
 
@@ -34,6 +38,12 @@ int8_t wifi_mqtt_get_rssi(void);
  * detector treats this as sustained degradation so the real failover FSM runs.
  */
 bool wifi_mqtt_force_jam(void);
+
+/* Toggle the manual jam on/off (used by the BOOT-button trigger). */
+void wifi_mqtt_toggle_jam(void);
+
+/* Force the manual jam on/off explicitly (used by the auto-demo thread). */
+void wifi_mqtt_set_jam(bool on);
 
 /* Must be pumped regularly to service MQTT keepalive / RX (called by payload thread). */
 void wifi_mqtt_process(void);

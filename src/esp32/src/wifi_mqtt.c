@@ -32,6 +32,8 @@ static uint64_t last_connect_attempt;
 
 #define WIFI_RETRY_MS 5000
 
+static void wifi_disable_ps(void);
+
 static struct net_mgmt_event_callback wifi_cb;
 static struct net_mgmt_event_callback l4_cb;
 
@@ -46,6 +48,7 @@ static uint8_t tx_buffer[512];
 static volatile bool mqtt_connected;
 static volatile bool mqtt_attempting;
 static volatile bool mqtt_subscribed;
+static volatile bool ever_connected;
 static volatile bool force_jam;
 static uint64_t mqtt_attempt_ms;
 static struct zsock_pollfd fds[1];
@@ -64,6 +67,19 @@ bool wifi_mqtt_force_jam(void)
 		force_jam = false;
 	}
 	return force_jam;
+}
+
+void wifi_mqtt_toggle_jam(void)
+{
+	force_jam = !force_jam;
+	force_jam_ms = k_uptime_get();
+	LOG_WRN("BOOT button -> force_jam=%d", force_jam);
+}
+
+void wifi_mqtt_set_jam(bool on)
+{
+	force_jam = on;
+	force_jam_ms = k_uptime_get();
 }
 
 static struct net_if *get_wifi_iface(void)
@@ -104,6 +120,8 @@ static void l4_evt_handler(struct net_mgmt_event_callback *cb, uint32_t event,
 	case NET_EVENT_L4_DISCONNECTED:
 		wifi_l4_up = false;
 		mqtt_connected = false;
+		mqtt_attempting = false;
+		mqtt_subscribed = false; /* must re-subscribe after reconnect */
 		LOG_WRN("WiFi L4 disconnected at t=%lld ms", k_uptime_get());
 		break;
 	default:
@@ -125,6 +143,7 @@ static void wifi_evt_handler(struct net_mgmt_event_callback *cb, uint32_t event,
 				st->status);
 		} else {
 			LOG_INF("WiFi associated to %s", JS_WIFI_SSID);
+			wifi_disable_ps();
 		}
 	} else if (event == NET_EVENT_WIFI_DISCONNECT_RESULT) {
 		wifi_l4_up = false;
@@ -168,6 +187,19 @@ static int do_wifi_connect(void)
 		LOG_WRN("WiFi connect request rejected (%d), will retry", ret);
 	}
 	return ret;
+}
+
+/* Disable WiFi power-save: keeps the radio awake so downlink (broker -> ESP32,
+ * e.g. the JAM/CLEAR control messages) is delivered reliably and latency is low.
+ * Without this, the station sleeps between its own TX and the AP drops buffered
+ * downlink packets — uplink (publish) works but downlink is missed.
+ */
+/* Implemented in esp_ps_shim.c (calls esp_wifi_set_ps(WIFI_PS_NONE)). */
+extern void js_wifi_disable_ps(void);
+
+static void wifi_disable_ps(void)
+{
+	js_wifi_disable_ps();
 }
 
 int wifi_mqtt_connect(void)
@@ -214,6 +246,7 @@ static void mqtt_evt_handler(struct mqtt_client *c, const struct mqtt_evt *evt)
 		mqtt_attempting = false;
 		if (evt->result == 0) {
 			mqtt_connected = true;
+			ever_connected = true;
 			LOG_INF("MQTT connected to broker %s", JS_MQTT_BROKER_IP);
 		} else {
 			LOG_ERR("MQTT CONNACK error %d", evt->result);
@@ -272,6 +305,7 @@ static void broker_init(void)
 static int mqtt_session_start(void)
 {
 	broker_init();
+	mqtt_subscribed = false; /* every new MQTT session must re-subscribe */
 	mqtt_client_init(&client);
 
 	client.broker = &broker;
@@ -403,6 +437,11 @@ void wifi_mqtt_process(void)
 bool wifi_mqtt_is_connected(void)
 {
 	return wifi_l4_up && mqtt_connected;
+}
+
+bool wifi_mqtt_was_connected(void)
+{
+	return ever_connected;
 }
 
 int8_t wifi_mqtt_get_rssi(void)
