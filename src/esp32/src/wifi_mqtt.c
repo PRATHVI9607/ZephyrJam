@@ -30,7 +30,8 @@ static volatile bool associating;
 static volatile int8_t last_rssi;
 static uint64_t last_connect_attempt;
 
-#define WIFI_RETRY_MS 5000
+#define WIFI_RETRY_MS    2000
+#define ASSOC_TIMEOUT_MS 8000
 
 static void wifi_disable_ps(void);
 
@@ -372,11 +373,17 @@ int wifi_mqtt_publish(const char *topic, const char *payload, size_t len)
 void wifi_mqtt_process(void)
 {
 	/* Drive WiFi (re)association with a simple backoff while not connected. */
-	if (wifi_iface && !wifi_l4_up && !associating) {
+	if (wifi_iface && !wifi_l4_up) {
 		uint64_t now = k_uptime_get();
 
-		if (last_connect_attempt == 0 ||
-		    (now - last_connect_attempt) > WIFI_RETRY_MS) {
+		/* Recover from a connect attempt that never returned a result
+		 * (can happen during a deauth storm) so we keep retrying. */
+		if (associating && (now - last_connect_attempt) > ASSOC_TIMEOUT_MS) {
+			associating = false;
+		}
+		if (!associating &&
+		    (last_connect_attempt == 0 ||
+		     (now - last_connect_attempt) > WIFI_RETRY_MS)) {
 			(void)do_wifi_connect();
 		}
 	}

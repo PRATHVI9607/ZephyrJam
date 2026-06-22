@@ -2521,3 +2521,371 @@ Before submitting the paper, verify each contribution is clearly stated and evid
 *Prepared for: Loki, 4th Semester B.Tech CSE, RVCE Bengaluru*
 *Advisor: Dr. Mohana*
 *Team: Ryan Dave Fernandes, P Koti Darshan, Rakshak S*
+
+---
+---
+
+# PART II — IoT INTEGRATION LAYER
+## Cloud · MQTT · Web/Mobile Application
+### (Report-ready section — concepts, architecture, requirements, implementation)
+
+> This part documents the connectivity, data, and application layer that turns
+> the JamShield node into a complete IoT system. It is written to be lifted
+> directly into a project report. It satisfies the course requirement to
+> **compulsorily integrate at least one of: an IoT Cloud, a Web/Mobile App, or
+> MQTT** — JamShield integrates **all three**, in a free, lightweight,
+> Raspberry-Pi-hostable, offline-first design.
+
+---
+
+## 26. EXECUTIVE OVERVIEW OF THE INTEGRATION LAYER
+
+The core JamShield contribution (Part I) is *resilient transport* — a node that
+detects WiFi jamming and hops WiFi → BLE → ESP-NOW. Part II answers the next
+question: **once the data survives the jam, where does it go, and how does a user
+see and control the system?**
+
+We add a three-tier **edge-to-cloud** stack:
+
+1. **MQTT (messaging backbone).** An Eclipse **Mosquitto** broker on the
+   Raspberry Pi 4 (the *edge gateway*) ingests sensor + telemetry packets from
+   the ESP32 over TCP, and re-publishes them over **WebSockets** so browsers and
+   phones can subscribe to the *same* live stream natively.
+2. **Web/Mobile Application (the human interface).** A **Progressive Web App
+   (PWA)** — installable on any phone home-screen, no app store — renders the
+   live channel, jam state, **per-packet data delivery**, and exposes controls
+   (protection mode, jam trigger). It speaks MQTT-over-WebSockets directly, so
+   the UI is a true MQTT client, not a polling shim.
+3. **IoT Cloud (remote reach + persistence).** Mosquitto **bridges** the
+   `jamshield/#` topic tree to a free managed cloud broker (**HiveMQ Cloud**,
+   TLS), making the live data and failover events reachable from anywhere and
+   chartable on a cloud dashboard — without the Pi exposing any inbound ports.
+
+**Design philosophy:** *edge-first, cloud-optional.* The full demo (ingest,
+store, visualise, control) runs **100% locally on the Pi with no internet**; the
+cloud bridge is an additive uplink. This is both robust for a live demo and a
+textbook example of modern **edge computing + cloud telemetry**.
+
+---
+
+## 27. REQUIREMENT MAPPING
+
+| Mandated option | JamShield implementation | Where |
+|---|---|---|
+| **MQTT integration** | Mosquitto broker (TCP 1883 + WS 9001); ESP32 publishes JSON; PWA subscribes over WS; QoS-1 with PUBACK-based loss tracking | §29 |
+| **Web / Mobile App** | Installable **PWA** served by the Pi; responsive; live MQTT-WS; control + telemetry; works on phone & desktop | §30 |
+| **IoT Cloud** | Mosquitto → **HiveMQ Cloud** (free, TLS) bridge; remote MQTT access + cloud dashboard; alternatives: ThingSpeak / Adafruit IO | §31 |
+
+All three are delivered; any **one** would satisfy the requirement, so the
+project is comfortably compliant with margin.
+
+---
+
+## 28. DESIGN GOALS & TECHNOLOGY SELECTION
+
+### 28.1 Non-functional goals
+- **Free** — zero licensing cost; only free tiers / open source.
+- **Lightweight on RPi4** — total added footprint < ~80 MB RAM, negligible CPU.
+- **Offline-first** — the system is fully demonstrable with no internet.
+- **No app-store / no native build** — a PWA installs from a URL.
+- **Secure-by-default** — TLS to the cloud; no inbound ports opened on the Pi.
+- **Reuses the existing stack** — Mosquitto and the JSON payload already exist.
+
+### 28.2 Technology trade-study
+
+| Concern | Options considered | Choice | Why |
+|---|---|---|---|
+| Local broker | Mosquitto, EMQX, NanoMQ | **Mosquitto** | Tiny (~5 MB), native WS, already deployed, Debian package |
+| Browser transport | REST polling, SSE, **MQTT/WS** | **MQTT over WebSockets** | True pub/sub; same topics as devices; sub-second push |
+| App type | Native Android, Flutter, **PWA** | **PWA** | No store, no toolchain, installable, one codebase, offline cache |
+| Cloud | ThingsBoard (self-host), ThingSpeak, Adafruit IO, **HiveMQ Cloud** | **HiveMQ Cloud (free)** | Managed MQTT, TLS, no message rate-limit, outbound-only bridge |
+| Cloud charts (optional) | Grafana, ThingSpeak, Adafruit IO | **ThingSpeak / Adafruit IO** | Ready-made charts if a hosted dashboard is desired (rate-limited → downsample) |
+
+> **Why not ThingsBoard / Node-RED dashboards?** Excellent but heavier on a Pi
+> and slower to provision for a demo. We keep the edge minimal (Mosquitto + a
+> static PWA + a thin Python service) and push "cloud features" to a free managed
+> broker, which is the lighter, more resilient split.
+
+---
+
+## 29. END-TO-END ARCHITECTURE
+
+```mermaid
+flowchart TB
+  classDef dev fill:#cfe2ff,stroke:#0d6efd,color:#000,font-weight:bold
+  classDef edge fill:#d1e7dd,stroke:#198754,color:#000,font-weight:bold
+  classDef app fill:#cff4fc,stroke:#0aa2c0,color:#000,font-weight:bold
+  classDef cloud fill:#e2d9f3,stroke:#6f42c1,color:#000,font-weight:bold
+  classDef store fill:#fff3cd,stroke:#e0a800,color:#000
+
+  subgraph DEV["Field devices (2.4 GHz)"]
+    N["ESP32 JamShield node<br/>WiFi · BLE · ESP-NOW"]:::dev
+    J["ESP32 jammer<br/>(attacker, demo)"]:::dev
+  end
+
+  subgraph EDGE["Raspberry Pi 4 - Edge Gateway"]
+    M["Mosquitto broker<br/>1883 TCP · 9001 WebSocket"]:::edge
+    L["Logger + REST API<br/>(Python)"]:::edge
+    DB[("SQLite<br/>packets · events")]:::store
+    PWA["PWA static host<br/>(installable web/mobile app)"]:::app
+    M --> L --> DB
+    M --> PWA
+  end
+
+  CLOUD["HiveMQ Cloud (free, TLS)<br/>remote MQTT + cloud dashboard"]:::cloud
+  U["Phone / Laptop browser<br/>installed PWA"]:::app
+
+  N ==>|"MQTT JSON · QoS1<br/>jamshield/sensor/ldr"| M
+  N -.->|"BLE / ESP-NOW on jam"| L
+  J -.->|"deauth (demo)"| N
+  M ==>|"MQTT over WebSocket<br/>live subscribe + control"| U
+  PWA -->|"app shell"| U
+  M ==>|"bridge (outbound TLS 8883)<br/>jamshield/#"| CLOUD
+  CLOUD ==>|"MQTT over WSS (remote)"| U
+```
+
+### 29.1 Data-flow narrative
+1. The node publishes a JSON telemetry packet every 500 ms to
+   `jamshield/sensor/ldr` over MQTT/TCP (or, during a jam, the same payload over
+   BLE/ESP-NOW which the Pi re-injects into MQTT).
+2. Mosquitto fans the message out to: the **logger** (→ SQLite), every connected
+   **PWA** client over WebSockets, and the **cloud bridge** over TLS.
+3. The PWA renders the live stream and lets the operator publish **control**
+   messages to `jamshield/control` (mode / jam), closing the loop.
+4. Remotely, the cloud broker serves the identical topic tree, so an off-site
+   viewer (or a cloud dashboard) sees the system in real time.
+
+### 29.2 Live failover sequence (with the app in the loop)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant N as ESP32 node
+  participant M as Mosquitto (Pi)
+  participant A as PWA (phone)
+  participant C as HiveMQ Cloud
+  N->>M: publish telemetry (channel=WIFI)
+  M-->>A: live update (WS)
+  M-->>C: bridge (TLS)
+  Note over N: jam detected
+  N->>N: WiFi -> BLE failover (~200 ms)
+  N->>M: telemetry now arrives via BLE path (channel=BLE)
+  M-->>A: channel flips to BLE, data still flowing
+  A->>M: operator publishes control (e.g. CLEAR)
+  N->>N: recover -> WiFi
+  M-->>A: channel back to WIFI
+```
+
+---
+
+## 30. MQTT INTEGRATION & TOPIC DESIGN
+
+### 30.1 Broker configuration (Mosquitto on RPi4)
+- **Listener 1883** — plain TCP for the constrained ESP32 (no TLS on-device to
+  save flash/RAM; the link is on a trusted LAN/AP).
+- **Listener 9001** — WebSocket (`protocol websockets`) for browser/PWA clients.
+- **Bridge** — outbound TLS connection to HiveMQ Cloud (§31).
+- `allow_anonymous true` on the LAN listeners for the demo; production would add
+  per-device username/password + ACLs.
+
+### 30.2 Topic taxonomy
+
+| Topic | Dir | QoS | Payload | Purpose |
+|---|---|---|---|---|
+| `jamshield/sensor/ldr` | device→ | 1 | JSON telemetry | Primary sensor + status stream |
+| `jamshield/events/failover` | device→ | 1 | JSON event | Failover/recovery markers + latency |
+| `jamshield/control` | →device | 0/1 | `JAM` / `CLEAR` / `HOP` / `NOHOP` / `NOBLE` | Operator commands from the app |
+| `jamshield/status/node` | device→ | 1, retained | JSON | Last-will + retained health snapshot |
+
+### 30.3 Telemetry payload (JSON, WiFi/MQTT)
+```json
+{ "seq": 1234, "ts_ms": 1718024400123, "channel": "WIFI",
+  "ldr_adc": 2847, "ldr_lux": 142.3, "rssi": -62, "cpu_util": 23,
+  "free_heap": 142560, "jam_state": "CLEAR" }
+```
+The compact 18-byte binary form (BLE/ESP-NOW, Part I §7.2) carries the same
+fields and is normalised back to this JSON at the edge, so **one schema** serves
+all three radios and the whole cloud/app layer.
+
+### 30.4 QoS & reliability
+QoS-1 publishing with PUBACK tracking gives the node a per-packet delivery
+signal, which is exactly what powers the dashboard's **Sent / Delivered / Lost**
+data-integrity panel — the metric that makes "data saved by hopping vs. data lost
+when unprotected" quantitative.
+
+---
+
+## 31. WEB / MOBILE APPLICATION (PWA)
+
+### 31.1 What & why
+A **Progressive Web App** is a website that installs to a phone/desktop home
+screen, runs full-screen, and works offline via a service worker — delivering a
+native-app feel with **zero app-store friction and one codebase**. It is the
+lightest possible "mobile app" for an IoT project.
+
+### 31.2 Capabilities
+- **Live telemetry** over MQTT-WebSockets: active channel, jam state, RSSI, loss.
+- **Data-integrity view**: Sent / Delivered / Lost / delivery-rate, plus a
+  per-packet feed and a colour timeline — the visual proof of resilience.
+- **Control**: protection mode (HOP / NO-HOP / NO-BLE) and jam trigger, published
+  to `jamshield/control`.
+- **Installable & responsive**: Web App Manifest + service worker; adapts from
+  phone to projector.
+- **Offline shell**: the app UI loads even if the broker is briefly unreachable.
+
+### 31.3 Tech
+- **MQTT.js / Eclipse Paho-JS** over WebSockets (the browser is a real MQTT
+  client subscribing to the same topics as the firmware).
+- Vanilla HTML/CSS/JS (glassmorphism design system, mono-numeral telemetry) — no
+  heavy framework, so it loads instantly on a phone and is trivially hosted by
+  the Pi.
+- Served as static files by the Pi (the existing Python dashboard host or a small
+  Flask route), or directly from the cloud for remote use.
+
+### 31.4 Relationship to the desktop dashboard
+The existing USB-serial control dashboard (Part I tooling) remains the
+**low-level lab/demo console**; the PWA is the **product-facing app** that uses
+the *standard IoT path* (MQTT-WS), so the same UI works locally and via the
+cloud, on any device, with no USB cable.
+
+---
+
+## 32. IoT CLOUD INTEGRATION
+
+### 32.1 Pattern: outbound bridge (no inbound ports)
+Rather than exposing the Pi to the internet, Mosquitto opens a single **outbound
+TLS connection** to a managed cloud broker and mirrors `jamshield/#` both ways.
+This is the standard, secure IoT gateway pattern — the edge dials out; nothing
+dials in.
+
+```
+# /etc/mosquitto/conf.d/cloud-bridge.conf  (illustrative)
+connection hivemq-cloud
+address <your-cluster>.s2.eu.hivemq.cloud:8883
+bridge_protocol_version mqttv311
+bridge_insecure false
+remote_username <cloud-user>
+remote_password <cloud-pass>
+topic jamshield/# both 1 "" ""
+```
+
+### 32.2 Choice & alternatives
+- **HiveMQ Cloud (free serverless):** full MQTT 5/3.1.1, TLS, 100 connections,
+  ~10 GB/month — **no message rate limit**, ideal for our 2 msg/s live stream and
+  for letting the PWA connect remotely over WSS. **Primary choice.**
+- **ThingSpeak (free):** ready MATLAB-style charts; limited to 1 update / 15 s →
+  publish a downsampled summary feed (e.g., every 15 s + on every failover).
+- **Adafruit IO (free):** friendly dashboards + mobile; ~30 data-points/min →
+  throttle the live feed and stream events.
+
+> For a report, the recommended narrative is: **HiveMQ Cloud** for the live MQTT
+> uplink (remote real-time), **plus** an optional **ThingSpeak** channel for
+> persistent cloud charts of failover latency and packet-loss over time.
+
+### 32.3 What the cloud adds (and doesn't)
+Adds: remote real-time view, off-site dashboards, historical charts, a public
+demo URL. Does **not** add a single point of failure to the live demo — if the
+cloud or internet is down, the edge keeps ingesting, storing, visualising, and
+controlling locally.
+
+---
+
+## 33. EDGE DATA PIPELINE & STORAGE
+
+```mermaid
+flowchart LR
+  classDef e fill:#d1e7dd,stroke:#198754,color:#000
+  classDef s fill:#fff3cd,stroke:#e0a800,color:#000
+  MQTT["Mosquitto"]:::e --> SUB["Python subscriber<br/>(paho-mqtt)"]:::e
+  SUB --> NORM["normalise + tag channel"]:::e
+  NORM --> DB[("SQLite: packets, events,<br/>experiment_runs")]:::s
+  DB --> API["REST / query<br/>(metrics, CSV export)"]:::e
+  DB --> AN["Analysis: latency CDF,<br/>loss, survivability"]:::s
+```
+
+- **Schema** (Part I §15.1): `packets`, `events`, `experiment_runs` + views
+  `failover_events`, `packet_loss_by_channel`.
+- **Footprint**: SQLite is a single file; ~6 rows/s; days of data in a few MB.
+- **Export**: one-line CSV export per experiment for the report's figures.
+
+---
+
+## 34. SECURITY & PRIVACY
+
+| Layer | Threat | Mitigation |
+|---|---|---|
+| Device ↔ Pi (LAN) | Eavesdrop/spoof on the AP | Trusted AP/PSK; (production) per-device MQTT auth + ACL by topic |
+| Pi ↔ Cloud | Interception, MITM | **TLS 8883**, server-cert validation, cloud credentials |
+| Cloud ↔ App (remote) | Token leakage | WSS + cloud credentials; least-privilege topic scope |
+| Pi exposure | Inbound attack surface | **No inbound ports** — outbound bridge only |
+| Jammer firmware | Misuse | Authorised lab/educational use on own network only (documented) |
+
+Privacy: telemetry is a light-level reading + link health — no personal data.
+
+---
+
+## 35. DEPLOYMENT ON RASPBERRY PI 4
+
+| Service | Role | Approx. footprint |
+|---|---|---|
+| `mosquitto` | Broker (TCP + WS) + cloud bridge | ~5–8 MB RAM, ~0% idle CPU |
+| `jamshield-recv` (Python) | MQTT/BLE→SQLite logger | ~25–40 MB RAM |
+| static PWA host | Serve the app | negligible (static files) |
+| SQLite | Storage | single file on SD |
+
+All install via `apt` + a Python venv; everything autostarts via **systemd** and
+survives reboots. Total added load on a 4 GB Pi 4 is trivial (< ~2% CPU, < ~80 MB
+RAM), leaving ample headroom — confirmed against the project's reliability goal.
+
+```mermaid
+flowchart TB
+  classDef s fill:#d1e7dd,stroke:#198754,color:#000
+  boot["RPi4 boot"]:::s --> sd["systemd"]:::s
+  sd --> a["mosquitto.service"]:::s
+  sd --> b["jamshield-recv.service"]:::s
+  sd --> c["pwa-host.service"]:::s
+  a --> br["cloud bridge (TLS)"]:::s
+```
+
+---
+
+## 36. REQUIREMENT-COMPLIANCE MATRIX
+
+| # | Requirement | Status | Evidence |
+|---|---|---|---|
+| R1 | Use ≥1 of IoT cloud / Web-Mobile app / MQTT | ✅ all three | §27 |
+| R2 | Lightweight | ✅ | < ~80 MB RAM added (§35) |
+| R3 | Free | ✅ | OSS + free cloud tiers (§28.2) |
+| R4 | Runs on RPi4 | ✅ | systemd services, footprint (§35) |
+| R5 | Demonstrate full working | ✅ | live PWA + dashboard + cloud (§29, §31) |
+| R6 | Resilient transport (core) | ✅ | WiFi→BLE→ESP-NOW (Part I) |
+| R7 | Quantified data integrity | ✅ | QoS-1 Sent/Delivered/Lost (§30.4) |
+
+---
+
+## 37. EVALUATION & DEMO STORYLINE (for the report)
+
+1. **Normal IoT operation** — telemetry streams to the broker; the PWA (on a
+   phone) and the cloud both show the live light-sensor feed over MQTT.
+2. **Attack** — the jammer is engaged; an *unprotected* node (NO-HOP) shows the
+   PWA's delivery counter freeze and **Lost** climb — classic IoT data loss.
+3. **Defence** — with hopping enabled (HOP), the same attack only flips the
+   channel to BLE; the PWA keeps streaming, **Lost = 0** — the contribution,
+   shown quantitatively end-to-end through the full MQTT/app/cloud pipeline.
+4. **Remote** — the same state is visible on the cloud dashboard from another
+   network, proving the IoT-cloud integration.
+
+**One-paragraph abstract (report-ready).** *JamShield couples a jamming-resilient
+ESP32 sensor node with a complete, free, edge-to-cloud IoT stack. A Raspberry Pi
+4 runs an MQTT (Mosquitto) broker that ingests telemetry over TCP and republishes
+it over WebSockets to an installable Progressive Web App, while an outbound TLS
+bridge mirrors the data to a managed cloud broker (HiveMQ Cloud) for remote
+access and dashboards. The system is offline-first — fully operational without
+internet — and quantifies its core claim using QoS-1 delivery accounting: under
+an active jammer, an unprotected node loses data, whereas the hopping node
+sustains delivery by failing over to BLE/ESP-NOW, all observable live on the web/
+mobile app and the cloud.*
+
+---
+
+*Part II — IoT Integration Layer · v1.0*

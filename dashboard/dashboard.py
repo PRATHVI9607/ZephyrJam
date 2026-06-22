@@ -26,7 +26,7 @@ TIMELINE_MAX = 140
 FEED_MAX = 16
 
 state = {
-    "node_open": False, "jammer_open": False, "jammer_on": False,
+    "node_open": False, "jammer_open": False, "jammer_on": False, "rf_on": False,
     "mode": "?", "ch": "?", "jam": "?",
     "seq": 0, "rssi": 0, "loss": 0, "wifi": 0, "deliv": 0, "ldr": 0,
     "counts": {"WIFI": 0, "BLE": 0, "ESPNOW": 0, "DROP": 0},
@@ -142,15 +142,25 @@ class Handler(BaseHTTPRequestHandler):
             elif a == "noble":
                 _w(node_ser, "e")
             elif a == "jam_on":
-                _w(jammer_ser, "s")
+                # Control-link jam: node runs its real FSM, WiFi stays up ->
+                # instant failover AND instant recovery.
                 _w(node_ser, "j")
                 with state_lock:
                     state["jammer_on"] = True
             elif a == "jam_off":
-                _w(jammer_ser, "x")
                 _w(node_ser, "c")
                 with state_lock:
                     state["jammer_on"] = False
+            elif a == "rf_on":
+                # Real over-the-air deauth from ESP32 #2 (recovery is slower:
+                # WiFi must fully re-establish afterwards).
+                _w(jammer_ser, "s")
+                with state_lock:
+                    state["rf_on"] = True
+            elif a == "rf_off":
+                _w(jammer_ser, "x")
+                with state_lock:
+                    state["rf_on"] = False
             elif a == "reset":
                 with state_lock:
                     state["counts"] = {"WIFI": 0, "BLE": 0, "ESPNOW": 0, "DROP": 0}
@@ -239,6 +249,10 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .jbtn:hover{background:rgba(255,255,255,.1)}.jbtn:active{transform:translateY(1px)}
 .jbtn.on{background:rgba(255,93,110,.16);border-color:rgba(255,93,110,.55);color:#ffd9de}
 .jbtn.on .d{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--drop);margin-right:8px;animation:blink 1s steps(2,end) infinite;vertical-align:middle}
+.rfbtn{cursor:pointer;width:100%;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px;
+  font-size:12px;font-weight:600;background:transparent;color:var(--mut);transition:transform .12s,color .12s,border-color .12s}
+.rfbtn:hover{color:var(--txt);border-color:rgba(255,255,255,.2)}.rfbtn:active{transform:translateY(1px)}
+.rfbtn.on{color:#ffd9de;border-color:rgba(255,93,110,.55);background:rgba(255,93,110,.12)}
 /* integrity */
 .integ{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:8px}
 .integ .cell{padding:12px 6px;border-left:1px solid var(--line)}
@@ -306,7 +320,8 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
       <button class=mbtn id=m_noble onclick="cmd('noble')"><b>NO-BLE</b>
         <span>Skip BLE; WiFi to ESP-NOW</span></button>
     </div>
-    <button class=jbtn id=jbtn onclick=tj()><span class=d></span><span id=jbtnt>Start jammer</span></button>
+    <button class=jbtn id=jbtn onclick=tj()><span class=d></span><span id=jbtnt>Start jam</span></button>
+    <button class=rfbtn id=rfbtn onclick=trf()>RF jammer (real OTA &mdash; slower recovery)</button>
   </div>
 </div>
 
@@ -339,9 +354,10 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <script>
 const C={WIFI:'#34d39a',BLE:'#5b9dff',ESPNOW:'#f0a45a',DROP:'#ff5d6e'};
-let JAMON=false;
+let JAMON=false,RFON=false;
 function cmd(a){fetch('/api/cmd?a='+a);}
 function tj(){fetch('/api/cmd?a='+(JAMON?'jam_off':'jam_on'));}
+function trf(){fetch('/api/cmd?a='+(RFON?'rf_off':'rf_on'));}
 function $(id){return document.getElementById(id);}
 async function tick(){
   let s;try{s=await(await fetch('/api/state')).json();}catch(e){return;}
@@ -360,7 +376,9 @@ async function tick(){
   $('ldr').textContent=s.ldr;
   for(const m of['hop','nohop','noble'])
     $('m_'+m).classList.toggle('on',s.mode==(m=='hop'?'HOP':m=='nohop'?'NOHOP':'NOBLE'));
-  $('jbtn').className='jbtn'+(JAMON?' on':'');$('jbtnt').textContent=JAMON?'Stop jammer':'Start jammer';
+  $('jbtn').className='jbtn'+(JAMON?' on':'');$('jbtnt').textContent=JAMON?'Stop jam':'Start jam';
+  RFON=s.rf_on;$('rfbtn').className='rfbtn'+(RFON?' on':'');
+  $('rfbtn').textContent=RFON?'RF jammer ON - click to stop':'RF jammer (real OTA - slower recovery)';
   const dlv=s.counts.WIFI+s.counts.BLE+s.counts.ESPNOW, lost=s.counts.DROP, sent=dlv+lost;
   $('i_sent').textContent=sent;$('i_dlv').textContent=dlv;$('i_lost').textContent=lost;
   $('i_rate').textContent=sent?((100*dlv/sent).toFixed(1)+'%'):'--';

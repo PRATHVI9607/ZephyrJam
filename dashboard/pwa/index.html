@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#060912">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>JamShield</title>
+<style>
+:root{
+  --bg:#060912;--card:rgba(255,255,255,.05);--line:rgba(255,255,255,.09);
+  --txt:#eaf0fc;--mut:#8492b0;
+  --wifi:#34d39a;--ble:#5b9dff;--espnow:#f5a45a;--drop:#ff5d6e;--warn:#f5ca51;--accent:#4c8dff;
+  --mono:ui-monospace,"SFMono-Regular","JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#bgwash{position:fixed;inset:0;z-index:-1;pointer-events:none;transition:background .6s}
+.app{max-width:540px;margin:0 auto;padding:14px 16px 30px}
+/* bar */
+.bar{display:flex;align-items:center;gap:11px;padding:6px 2px 14px}
+.logo{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+  background:linear-gradient(155deg,#4c8dff,#34d39a);box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.logo svg{width:20px;height:20px;fill:#060912}
+.title{font-size:17px;font-weight:700;letter-spacing:-.2px;line-height:1}
+.title small{display:block;font-size:11px;font-weight:500;color:var(--mut);margin-top:3px}
+.conn{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mut);
+  border:1px solid var(--line);background:var(--card);padding:7px 11px;border-radius:999px;backdrop-filter:blur(12px)}
+.cdot{width:8px;height:8px;border-radius:50%;background:#566;transition:.3s}
+.cdot.on{background:var(--wifi);box-shadow:0 0 10px var(--wifi)}
+.glass{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  backdrop-filter:blur(22px) saturate(120%);-webkit-backdrop-filter:blur(22px) saturate(120%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 18px 44px -24px rgba(0,0,0,.8)}
+.k{font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--mut)}
+/* STATUS HERO */
+.hero{padding:20px;margin-bottom:13px;position:relative;overflow:hidden;transition:border-color .4s}
+.statusrow{display:flex;align-items:center;gap:13px}
+.beacon{width:46px;height:46px;border-radius:50%;flex:none;position:relative;display:grid;place-items:center}
+.beacon i{width:14px;height:14px;border-radius:50%;display:block}
+.beacon.secure i{background:var(--wifi)} .beacon.attack i{background:var(--drop)} .beacon.lost i{background:var(--drop)}
+.beacon::after{content:"";position:absolute;inset:0;border-radius:50%;animation:ring 2s ease-out infinite}
+.beacon.secure::after{box-shadow:0 0 0 0 rgba(52,211,154,.5)}
+.beacon.attack::after,.beacon.lost::after{animation-duration:.9s;box-shadow:0 0 0 0 rgba(255,93,110,.6)}
+@keyframes ring{to{box-shadow:0 0 0 24px transparent}}
+.statustxt .st{font-size:23px;font-weight:800;letter-spacing:-.5px;line-height:1.05}
+.statustxt .sd{font-size:12.5px;color:var(--mut);margin-top:4px;font-weight:500}
+.secure .st{color:var(--wifi)} .attack .st{color:var(--drop)} .lost .st{color:var(--drop)}
+.chanbadge{margin-top:15px;display:flex;align-items:center;gap:9px}
+.chanbadge .lbl{font-size:11px;color:var(--mut);font-weight:600}
+.chip{font-family:var(--mono);font-size:13px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid}
+.chip.WIFI{color:var(--wifi);border-color:rgba(52,211,154,.4);background:rgba(52,211,154,.1)}
+.chip.BLE{color:var(--ble);border-color:rgba(91,157,255,.4);background:rgba(91,157,255,.1)}
+.chip.ESPNOW{color:var(--espnow);border-color:rgba(245,164,90,.4);background:rgba(245,164,90,.1)}
+.chip.OFF{color:var(--mut);border-color:var(--line)}
+.hops{margin-left:auto;display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;color:var(--mut)}
+.hops b{font-weight:700}
+.arrow{opacity:.4}
+/* RSSI signal */
+.signal{padding:15px 17px;margin-bottom:13px}
+.sigtop{display:flex;align-items:baseline;gap:8px}
+.sigtop .v{font-family:var(--mono);font-size:30px;font-weight:600}
+.sigtop .u{font-size:12px;color:var(--mut)}
+.sigtop .hint{margin-left:auto;font-size:11px;color:var(--mut);text-align:right;max-width:48%}
+#spark{width:100%;height:64px;margin-top:8px;display:block}
+/* metric tiles */
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:13px}
+.tile{padding:13px 12px}
+.tile .v{font-family:var(--mono);font-size:24px;font-weight:600;margin-top:6px}
+.tile .v small{font-size:12px;color:var(--mut)}
+.tile.good .v{color:var(--wifi)} .tile.bad .v{color:var(--drop)}
+/* compare */
+.cmp{padding:16px 17px;margin-bottom:13px}
+.cmpgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:11px}
+.cmpcol{border:1px solid var(--line);border-radius:13px;padding:13px;position:relative}
+.cmpcol.prot{background:rgba(52,211,154,.06);border-color:rgba(52,211,154,.25)}
+.cmpcol.unprot{background:rgba(255,93,110,.06);border-color:rgba(255,93,110,.22)}
+.cmpcol .h{font-size:11px;font-weight:700;letter-spacing:.3px}
+.cmpcol.prot .h{color:var(--wifi)} .cmpcol.unprot .h{color:var(--drop)}
+.cmpcol .big{font-family:var(--mono);font-size:27px;font-weight:600;margin-top:8px}
+.cmpcol .sm{font-size:11.5px;color:var(--mut);margin-top:3px}
+/* timeline */
+.tl{padding:16px 17px;margin-bottom:13px}
+.tllist{margin-top:10px;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
+.ev{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;animation:fade .3s}
+@keyframes fade{from{opacity:0;transform:translateX(-4px)}to{opacity:1}}
+.ev .t{font-family:var(--mono);color:var(--mut);min-width:62px;font-size:11px;padding-top:1px}
+.ev .d{font-weight:600}
+.ev.attack .d{color:var(--drop)} .ev.defend .d{color:var(--ble)} .ev.ok .d{color:var(--wifi)} .ev.warn .d{color:var(--warn)}
+.ev .x{font-family:var(--mono);font-size:11px;color:var(--mut);margin-left:auto;white-space:nowrap}
+.empty{color:var(--mut);font-size:12.5px;text-align:center;padding:14px 0}
+/* controls */
+.ctrls{padding:16px 17px;margin-bottom:13px}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:10px;background:rgba(0,0,0,.28);padding:5px;border-radius:13px}
+.seg button{appearance:none;border:0;background:transparent;color:var(--mut);font-weight:700;font-size:12px;
+  padding:11px 4px;border-radius:9px;cursor:pointer;transition:.18s;font-family:var(--sans)}
+.seg button.on{background:rgba(76,141,255,.16);color:#dcebff;box-shadow:inset 0 0 0 1px rgba(76,141,255,.4)}
+.seg button:active{transform:scale(.96)}
+.segsub{font-size:11px;color:var(--mut);margin-top:9px;text-align:center}
+.jbtn{margin-top:13px;width:100%;appearance:none;border:1px solid var(--line);border-radius:15px;
+  padding:17px;font-size:16px;font-weight:800;letter-spacing:.3px;background:rgba(255,255,255,.06);color:var(--txt);
+  cursor:pointer;transition:transform .12s,background .15s}
+.jbtn:active{transform:scale(.98)}
+.jbtn.on{background:rgba(255,93,110,.18);border-color:rgba(255,93,110,.55);color:#ffdde1}
+.jbtn.on .pd{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--drop);margin-right:9px;animation:blink 1s steps(2) infinite;vertical-align:middle}
+@keyframes blink{50%{opacity:.25}}
+/* feed */
+.feed{padding:15px 17px}
+.feedlist{margin-top:9px;display:flex;flex-direction:column;gap:5px;max-height:34vh;overflow:auto}
+.pk{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:10px;border:1px solid var(--line);
+  background:rgba(255,255,255,.02);font-size:12.5px;animation:fade .25s}
+.pk .seq{font-family:var(--mono);color:var(--mut);min-width:52px}
+.pk .val{font-family:var(--mono)}
+.pk .tag{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.3px;padding:3px 9px;border-radius:999px}
+.t-WIFI{color:var(--wifi);background:rgba(52,211,154,.13)} .t-BLE{color:var(--ble);background:rgba(91,157,255,.13)}
+.t-ESPNOW{color:var(--espnow);background:rgba(245,164,90,.13)}
+.foot{text-align:center;color:var(--mut);font-size:11px;margin-top:15px;line-height:1.5}
+.reset{float:right;color:var(--accent);font-weight:700;letter-spacing:0;text-transform:none;cursor:pointer}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:508px;margin:0 auto;
+  background:rgba(20,28,48,.92);border:1px solid var(--line);border-radius:14px;padding:13px 15px;
+  display:none;align-items:center;gap:12px;backdrop-filter:blur(20px);z-index:50}
+.toast.show{display:flex}.toast b{font-size:13px}.toast span{font-size:12px;color:var(--mut)}
+.toast button{margin-left:auto;border:0;border-radius:9px;background:var(--accent);color:#fff;font-weight:700;padding:9px 14px;font-size:13px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="bgwash"></div>
+<div class="app">
+  <div class="bar">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.4 8 11 4.6-2.6 8-6 8-11V5l-8-3Zm0 4.2 4 1.5v3.3c0 3.3-2 5.6-4 7-2-1.4-4-3.7-4-7V7.7l4-1.5Z"/></svg></div>
+    <div class="title">JamShield<small>resilient sensor node</small></div>
+    <div class="conn"><span class="cdot" id="cdot"></span><span id="cstat">connecting</span></div>
+  </div>
+
+  <!-- STATUS HERO -->
+  <div class="glass hero secure" id="hero">
+    <div class="statusrow">
+      <div class="beacon secure" id="beacon"><i></i></div>
+      <div class="statustxt">
+        <div class="st" id="statetxt">LINK SECURE</div>
+        <div class="sd" id="statedesc">telemetry flowing normally</div>
+      </div>
+    </div>
+    <div class="chanbadge">
+      <span class="lbl">delivering over</span>
+      <span class="chip OFF" id="chan">—</span>
+      <span class="hops" id="hops"><b>WiFi</b><span class="arrow">&rsaquo;</span>BLE<span class="arrow">&rsaquo;</span>ESP-NOW</span>
+    </div>
+  </div>
+
+  <!-- LIVE SIGNAL -->
+  <div class="glass signal">
+    <div class="k">Live radio signal (RSSI)</div>
+    <div class="sigtop">
+      <span class="v" id="rssi">&mdash;</span><span class="u">dBm</span>
+      <span class="hint">real RF measurement &mdash; move the node and watch it change</span>
+    </div>
+    <canvas id="spark" width="500" height="64"></canvas>
+  </div>
+
+  <!-- METRICS -->
+  <div class="row3">
+    <div class="glass tile"><div class="k">Failover</div><div class="v"><span id="m_fo">&mdash;</span><small> ms</small></div></div>
+    <div class="glass tile good"><div class="k">Rescued</div><div class="v" id="m_resc">0</div></div>
+    <div class="glass tile bad"><div class="k">Lost</div><div class="v" id="m_lost">0</div></div>
+  </div>
+
+  <!-- WITH vs WITHOUT -->
+  <div class="glass cmp">
+    <div class="k">Impact <span class="reset" id="resetbtn">reset</span></div>
+    <div class="cmpgrid">
+      <div class="cmpcol prot">
+        <div class="h">PROTECTED &middot; HOP</div>
+        <div class="big" id="c_prot_pct">100%</div>
+        <div class="sm"><span id="c_prot_resc">0</span> rescued &middot; <span id="c_prot_lost">0</span> lost</div>
+      </div>
+      <div class="cmpcol unprot">
+        <div class="h">UNPROTECTED &middot; NO-HOP</div>
+        <div class="big" id="c_unprot_pct">&mdash;</div>
+        <div class="sm"><span id="c_unprot_lost">0</span> lost while jammed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="glass tl">
+    <div class="k">Attack timeline</div>
+    <div class="tllist" id="tl"><div class="empty">no events yet &mdash; launch an attack to see the defense</div></div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="glass ctrls">
+    <div class="k">Protection mode</div>
+    <div class="seg">
+      <button id="m_hop" onclick="cmd('HOP')">HOP</button>
+      <button id="m_nohop" onclick="cmd('NOHOP')">NO-HOP</button>
+      <button id="m_noble" onclick="cmd('NOBLE')">NO-BLE</button>
+    </div>
+    <div class="segsub" id="modehint">HOP: WiFi &rarr; BLE &rarr; ESP-NOW failover</div>
+    <button class="jbtn" id="jbtn" onclick="toggleJam()"><span class="pd"></span><span id="jbtnt">Launch jamming attack</span></button>
+  </div>
+
+  <!-- FEED -->
+  <div class="glass feed">
+    <div class="k">Live packets</div>
+    <div class="feedlist" id="feed"><div class="empty">no packets yet</div></div>
+  </div>
+
+  <div class="foot">JamShield &middot; live over MQTT/WebSockets<br><span id="broker">&mdash;</span></div>
+</div>
+
+<div class="toast" id="toast">
+  <div><b>Install JamShield</b><br><span>add to your home screen</span></div>
+  <button id="installbtn">Install</button>
+</div>
+
+<script src="mqtt.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -4,8 +4,8 @@ A single command builds + flashes both ESP32s and opens a live web dashboard.
 You drive the whole demo from the browser.
 
 ## Hardware
-- **ESP32 #1 (node)** on **COM6** — the JamShield sensor node.
-- **ESP32 #2 (jammer)** on **COM7** — the attacker.
+- **ESP32 #1 (node)** and **ESP32 #2 (jammer)** on USB — the launcher
+  **auto-detects which is which** (no need to know the COM ports).
 - **Raspberry Pi** on the same 2.4 GHz WiFi (`Loki`) running the MQTT broker
   (auto-detected by the launcher).
 
@@ -61,12 +61,16 @@ straight to **ESP‑NOW** (the connectionless last-resort bearer).
   on the jammed link). The jam is triggered on the control channel; the node then
   runs its **real** detection → failover → recovery state machine.
 
+## Two ways to jam (two buttons)
+- **Start jam** (main button): asserts the jam over the USB control link. WiFi is
+  never torn down, so failover **and recovery are both ~1 s**. Reliable; use this
+  for the smooth demo. The node's detection/failover/recovery FSM is fully real.
+- **RF jammer (real OTA)**: the 2nd ESP32 associates and deauth-floods the AP for
+  real. Authentic over-the-air attack, but recovery is then the full WiFi
+  re-association (several seconds), and it depends on the hotspot. When idle, the
+  jammer stays **off** WiFi so it never disturbs the node.
+
 ## Notes / honesty
-- The RF jammer (ESP32 #2) is included and fires, but reliable over-the-air
-  jamming of a strong WPA2 link from a Zephyr build is hardware-marginal; the
-  dashboard's jam button therefore *also* asserts the jam on the control channel
-  so the failover is guaranteed for the demo. The node's resilience is real;
-  only the trigger is over USB.
 - **ESP‑NOW** delivery needs `CONFIG_JS_ESPNOW=y` and a receiver; NO‑BLE mode
   currently demonstrates the *hop* to ESP‑NOW (channel shown), not Pi-side receipt.
 

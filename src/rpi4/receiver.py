@@ -105,6 +105,7 @@ def start_wifi(writer: DBWriter, tracker: ChannelTracker, host: str) -> None:
         }
         tracker.observe("WIFI", recv_ts)
         writer.put(row)
+        publish_feed(row)
 
     try:
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
@@ -128,6 +129,7 @@ async def run_ble(writer: DBWriter, tracker: ChannelTracker) -> None:
             row["channel"] = "BLE"
             tracker.observe("BLE", recv_ts)
             writer.put(row)
+            publish_feed(row)
 
     print("[ble] scanning for JamShield...")
     while True:
@@ -174,6 +176,7 @@ def run_espnow(writer: DBWriter, tracker: ChannelTracker, iface: str,
                 row["channel"] = "ESPNOW"
                 tracker.observe("ESPNOW", row["recv_ts"])
                 writer.put(row)
+                publish_feed(row)
                 return
 
     print(f"[espnow] sniffing on {iface} (monitor mode required)")
@@ -183,11 +186,47 @@ def run_espnow(writer: DBWriter, tracker: ChannelTracker, iface: str,
         print(f"[espnow] sniff failed (is {iface} in monitor mode?): {exc}")
 
 
+# ───────────────────────── unified feed (for the PWA) ─────────────────────────
+_feed_pub = None
+
+
+def init_feed(host: str) -> None:
+    """Mirror every received packet (WiFi/BLE/ESP-NOW) to one MQTT topic,
+    jamshield/feed, which the PWA subscribes to over WebSockets."""
+    global _feed_pub
+    try:
+        import paho.mqtt.client as mqtt
+        try:
+            c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        except (AttributeError, TypeError):
+            c = mqtt.Client()
+        c.connect(host, 1883, 60)
+        c.loop_start()
+        _feed_pub = c
+        print("[feed] republishing to jamshield/feed")
+    except Exception as exc:
+        print(f"[feed] disabled: {exc}")
+
+
+def publish_feed(row: dict) -> None:
+    if not _feed_pub:
+        return
+    try:
+        _feed_pub.publish("jamshield/feed", json.dumps({
+            "seq": row.get("seq"), "channel": row.get("channel"),
+            "val": row.get("ldr_adc"), "rssi": row.get("rssi"),
+            "jam_state": row.get("jam_state"),
+        }))
+    except Exception:
+        pass
+
+
 # ───────────────────────── main ─────────────────────────
 async def amain(args) -> None:
     writer = DBWriter(args.db)
     writer.start()
     tracker = ChannelTracker(writer)
+    init_feed(args.mqtt_host)
     print(f"[main] logging to {args.db}")
 
     start_wifi(writer, tracker, args.mqtt_host)

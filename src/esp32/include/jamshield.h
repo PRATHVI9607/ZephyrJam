@@ -39,7 +39,7 @@ BUILD_ASSERT(sizeof(struct ble_sensor_payload) == 18,
 	     "ble_sensor_payload must be exactly 18 bytes on the wire");
 
 /* ---- Project-wide configuration ----------------------------------------- */
-#define JS_WIFI_SSID        "Loki"
+#define JS_WIFI_SSID        "loki"
 #define JS_WIFI_PSK         "loki2536"
 #define JS_MQTT_BROKER_IP   "10.182.210.137"  /* RPi4 on the LAN (broker) */
 #define JS_MQTT_BROKER_PORT 1883

@@ -1,0 +1,29 @@
+# JamShield - Mosquitto bridge to a free cloud MQTT broker (HiveMQ Cloud).
+# 1) Create a free cluster at https://www.hivemq.com/mqtt-cloud-broker/
+# 2) Create access credentials (username/password).
+# 3) Fill in the three placeholders below.
+# 4) Copy to /etc/mosquitto/conf.d/jamshield-cloud.conf and restart mosquitto.
+#
+# Outbound-only TLS: the Pi dials out; no inbound ports are opened.
+
+connection hivemq-cloud
+address YOUR-CLUSTER-ID.s1.eu.hivemq.cloud:8883
+
+bridge_protocol_version mqttv311
+remote_username YOUR_CLOUD_USERNAME
+remote_password YOUR_CLOUD_PASSWORD
+
+# TLS to the cloud (HiveMQ uses a public CA already trusted by the OS bundle).
+bridge_cafile /etc/ssl/certs/ca-certificates.crt
+bridge_insecure false
+
+# Mirror telemetry/events up to the cloud, accept control back down.
+topic jamshield/feed             out 1 "" ""
+topic jamshield/sensor/ldr       out 1 "" ""
+topic jamshield/events/failover  out 1 "" ""
+topic jamshield/control          in  1 "" ""
+
+# Keep the bridge resilient.
+cleansession true
+notifications false
+restart_timeout 5 30
