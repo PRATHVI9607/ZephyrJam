@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# live cloud creds — keep cloud_bridge.conf.example (template) only
+scripts/jamshield-cloud.conf
