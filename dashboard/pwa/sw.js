@@ -1,5 +1,5 @@
 /* JamShield PWA service worker - offline app shell. */
-var CACHE = "jamshield-v3";
+var CACHE = "jamshield-v4";
 var ASSETS = ["./", "./index.html", "./app.js", "./mqtt.min.js",
               "./manifest.webmanifest", "./icon.svg"];
 
@@ -20,15 +20,17 @@ self.addEventListener("activate", function (e) {
   self.clients.claim();
 });
 
+// Network-first: always serve the freshest code when online; cache is only an
+// offline fallback. Avoids the stale-app trap for a live dashboard.
 self.addEventListener("fetch", function (e) {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    caches.match(e.request).then(function (r) {
-      return r || fetch(e.request).then(function (resp) {
-        var cp = resp.clone();
-        caches.open(CACHE).then(function (c) { c.put(e.request, cp); });
-        return resp;
-      }).catch(function () { return caches.match("./index.html"); });
+    fetch(e.request).then(function (resp) {
+      var cp = resp.clone();
+      caches.open(CACHE).then(function (c) { c.put(e.request, cp); });
+      return resp;
+    }).catch(function () {
+      return caches.match(e.request).then(function (r) { return r || caches.match("./index.html"); });
     })
   );
 });

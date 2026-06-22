@@ -14,7 +14,7 @@ var STALL_MS = 2200;     // no packet for this long => link considered down
 var $ = function (id) { return document.getElementById(id); };
 $("broker").textContent = WS_URL;
 
-var client = null, started = false;
+var client = null, started = false, mqttUp = false;
 var lastRx = 0, lastTick = Date.now(), lastSeq = -1;
 var mode = "HOP", jamWanted = false;
 var last = { channel: "OFF", jam: "CLEAR", rssi: null, val: "-" };
@@ -26,6 +26,7 @@ var rssiHist = [], feed = [], events = [];
 
 /* ---------- connection ---------- */
 function setConn(ok, label) {
+  mqttUp = ok;
   $("cdot").className = "cdot" + (ok ? " on" : "");
   $("cstat").textContent = label || (ok ? "live" : "offline");
 }
@@ -103,7 +104,8 @@ function tick() {
 
   // --- headline status ---
   var cls, st, sd;
-  if (!started)        { cls = "secure"; st = "WAITING";          sd = "connecting to sensor node..."; }
+  if (!started)        { cls = mqttUp ? "secure" : "lost"; st = mqttUp ? "WAITING FOR NODE" : "NO BROKER LINK";
+                         sd = mqttUp ? "broker connected - no telemetry yet" : "cannot reach " + HOST + ":9001 - join the loki WiFi"; }
   else if (defended)   { cls = "attack"; st = "ATTACK DEFEATED";  sd = "WiFi jammed - data rerouted over " + last.channel; }
   else if (losing)     { cls = "lost";   st = "DATA LOST";        sd = "unprotected - packets dropping while jammed"; }
   else if (live && last.jam === "CLEAR" && last.channel === "WIFI") { cls = "secure"; st = "LINK SECURE"; sd = "telemetry flowing normally"; }
@@ -221,5 +223,10 @@ window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault()
 $("installbtn").onclick = function () { $("toast").classList.remove("show"); if (deferred) { deferred.prompt(); deferred = null; } };
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 
-highlightMode(); syncJamBtn(); renderFeed(); connect();
-setInterval(tick, 250);
+highlightMode(); syncJamBtn(); renderFeed();
+setInterval(tick, 250);                 // always run the UI, even if MQTT fails
+if (typeof mqtt === "undefined") {
+  setConn(false, "mqtt.js failed to load");
+} else {
+  try { connect(); } catch (e) { setConn(false, "connect error"); console.error(e); }
+}
