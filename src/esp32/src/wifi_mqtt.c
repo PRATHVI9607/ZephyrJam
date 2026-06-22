@@ -20,6 +20,7 @@
 #include "wifi_mqtt.h"
 #include "jamshield.h"
 #include "jam_detect.h"
+#include "conn_mgr_setup.h"
 
 LOG_MODULE_REGISTER(wifi_mqtt, LOG_LEVEL_INF);
 
@@ -279,7 +280,14 @@ static void mqtt_evt_handler(struct mqtt_client *c, const struct mqtt_evt *evt)
 
 		if (r > 0) {
 			buf[r] = '\0';
-			if (strstr((char *)buf, "JAM")) {
+			/* Check NOHOP/NOBLE before HOP: strstr("NOHOP","HOP") matches. */
+			if (strstr((char *)buf, "NOHOP")) {
+				js_mode_set(JS_MODE_NOHOP);
+			} else if (strstr((char *)buf, "NOBLE")) {
+				js_mode_set(JS_MODE_NOBLE);
+			} else if (strstr((char *)buf, "HOP")) {
+				js_mode_set(JS_MODE_HOP);
+			} else if (strstr((char *)buf, "JAM")) {
 				force_jam = true;
 				force_jam_ms = k_uptime_get();
 			} else if (strstr((char *)buf, "CLEAR")) {
