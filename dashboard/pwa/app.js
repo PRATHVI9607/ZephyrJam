@@ -21,7 +21,6 @@ var last = { channel: "OFF", jam: "CLEAR", rssi: null, val: "-" };
 
 var delivered = 0, lostGaps = 0, lostFrac = 0, rescued = 0;
 var attackOn = false, attackT0 = 0, failoverMs = null, foMarked = false;
-var prot = { rescued: 0 }, unprot = { lost: 0 };
 var rssiHist = [], feed = [], events = [];
 
 /* ---------- connection ---------- */
@@ -57,7 +56,7 @@ function onPacket(p) {
     if (seq !== lastSeq) {
       delivered++; lastSeq = seq;
       feed.unshift({ seq: seq, val: p.val != null ? p.val : "?", ch: ch,
-                     rssi: p.rssi != null ? p.rssi : "?", jam: jam });
+                     rssi: p.rssi != null ? p.rssi : "?", jam: jam, raw: p, ts: now });
       if (feed.length > 16) feed.pop();
       renderFeed();
     }
@@ -71,7 +70,7 @@ function onPacket(p) {
     addEvent("attack", "Jamming attack detected", "");
   }
   if (ch !== "WIFI") {                         // a packet survived via a fallback radio
-    rescued++; prot.rescued++;
+    rescued++;
     if (!foMarked && attackOn) {               // first fallback packet = failover complete
       failoverMs = now - attackT0; foMarked = true;
       addEvent("defend", "Failover WiFi to " + ch, failoverMs + " ms");
@@ -98,9 +97,9 @@ function tick() {
 
   if (losing) {                               // accrue estimated lost packets at the node's rate
     lostFrac += dt * RATE;
-    if (mode === "NOHOP") unprot.lost = Math.floor(unprot.lost + dt * RATE);
     if (!attackOn) { attackOn = true; attackT0 = now; addEvent("attack", "Jamming attack detected", "unprotected"); }
   }
+  var lostTotal = lostGaps + Math.floor(lostFrac);
 
   // --- headline status ---
   var cls, st, sd;
@@ -120,14 +119,14 @@ function tick() {
   $("rssi").textContent = last.rssi != null ? last.rssi : "—";
   $("m_fo").textContent = failoverMs != null ? failoverMs : "—";
   $("m_resc").textContent = rescued;
-  $("m_lost").textContent = lostGaps + Math.floor(lostFrac);
+  $("m_lost").textContent = lostTotal;
 
-  // comparison
-  $("c_prot_resc").textContent = prot.rescued;
+  // comparison: protected = saved by hopping, unprotected = what would have dropped
+  $("c_prot_resc").textContent = rescued;
   $("c_prot_lost").textContent = 0;
-  $("c_prot_pct").textContent = prot.rescued > 0 ? "100%" : "—";
-  $("c_unprot_lost").textContent = unprot.lost;
-  $("c_unprot_pct").textContent = unprot.lost > 0 ? "0%" : "—";
+  $("c_prot_pct").textContent = rescued > 0 ? "100%" : "—";
+  $("c_unprot_lost").textContent = lostTotal;
+  $("c_unprot_pct").textContent = lostTotal > 0 ? "0%" : "—";
 
   drawSpark(cls);
 }
@@ -149,7 +148,7 @@ function renderFeed() {
     var lux = (f.val != null && !isNaN(f.val)) ? ((4095 - f.val) / 40).toFixed(1) : "?";
     var js = '{"node":"jamshield-01","seq":' + f.seq + ',"sensor":"ldr","ldr_adc":' + f.val +
              ',"lux":' + lux + ',"rssi":' + f.rssi + ',"link":"' + f.ch + '","jam":"' + f.jam + '"}';
-    h += '<div class="pk"><span class="seq">#' + f.seq + '</span><span class="json">' + js +
+    h += '<div class="pk" onclick="openPk(' + f.seq + ')"><span class="seq">#' + f.seq + '</span><span class="json">' + js +
          '</span><span class="tag t-' + f.ch + '">' + f.ch + '</span></div>';
   }
   $("feed").innerHTML = h;
@@ -192,6 +191,31 @@ function drawSpark(cls) {
   ctx.beginPath(); ctx.arc(W - 2, ly, 3, 0, 7); ctx.fillStyle = col; ctx.fill();
 }
 
+/* ---------- packet detail sheet ---------- */
+function openPk(seq) {
+  var f = null;
+  for (var i = 0; i < feed.length; i++) if (feed[i].seq === seq) { f = feed[i]; break; }
+  if (!f) return;
+  var p = f.raw;
+  var lux = (p.val != null && !isNaN(p.val)) ? ((4095 - p.val) / 40).toFixed(1) : "?";
+  var rows = [
+    ["node", "jamshield-01"], ["sequence", "#" + p.seq], ["sensor", "LDR (ambient light)"],
+    ["ldr_adc", p.val + " / 4095"], ["lux (approx)", lux + " lx"],
+    ["delivered over", p.channel], ["link RSSI", p.rssi + " dBm"],
+    ["jam state", p.jam_state], ["received", new Date(f.ts).toLocaleTimeString()]
+  ];
+  var t = "";
+  for (var j = 0; j < rows.length; j++)
+    t += '<div class="dr"><span>' + rows[j][0] + '</span><b>' + rows[j][1] + '</b></div>';
+  var pretty = JSON.stringify({ node: "jamshield-01", seq: p.seq, sensor: "ldr",
+    ldr_adc: p.val, lux: +lux, rssi: p.rssi, link: p.channel, jam: p.jam_state }, null, 2);
+  $("pkbody").innerHTML = '<div class="chip ' + p.channel + '" style="margin-bottom:12px">' + p.channel +
+    '</div><div class="drows">' + t + '</div><div class="k" style="margin:14px 0 6px">raw payload</div>' +
+    '<pre class="raw">' + pretty + '</pre>';
+  $("pkmodal").classList.add("show");
+}
+function closePk(e) { if (!e || e.target.id === "pkmodal" || e.currentTarget.tagName === "SPAN") $("pkmodal").classList.remove("show"); }
+
 /* ---------- control ---------- */
 function pub(topic, msg) { if (client && client.connected) client.publish(topic, msg); }
 function cmd(m) { mode = m; pub("jamshield/control", m); highlightMode(); }
@@ -212,8 +236,7 @@ function syncJamBtn() {
   $("jbtnt").textContent = jamWanted ? "Stop attack" : "Launch jamming attack";
 }
 $("resetbtn").onclick = function () {
-  delivered = 0; lostGaps = 0; lostFrac = 0; rescued = 0; lastSeq = -1;
-  prot = { rescued: 0 }; unprot = { lost: 0 }; failoverMs = null;
+  delivered = 0; lostGaps = 0; lostFrac = 0; rescued = 0; lastSeq = -1; failoverMs = null;
   events = []; $("tl").innerHTML = '<div class="empty">no events yet</div>';
 };
 
