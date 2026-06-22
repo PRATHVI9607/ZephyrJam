@@ -55,7 +55,8 @@ function onPacket(p) {
     if (lastSeq >= 0 && seq > lastSeq + 1) lostGaps += (seq - lastSeq - 1);
     if (seq !== lastSeq) {
       delivered++; lastSeq = seq;
-      feed.unshift({ seq: seq, val: p.val != null ? p.val : "?", ch: ch });
+      feed.unshift({ seq: seq, val: p.val != null ? p.val : "?", ch: ch,
+                     rssi: p.rssi != null ? p.rssi : "?", jam: jam });
       if (feed.length > 16) feed.pop();
       renderFeed();
     }
@@ -90,8 +91,9 @@ function tick() {
   var now = Date.now(), dt = (now - lastTick) / 1000; lastTick = now;
   var live = started && (now - lastRx) < STALL_MS;
   var defended = live && last.channel !== "WIFI";
-  // unprotected: an attack is wanted but nothing is getting through
-  var losing = jamWanted && !defended && (!live || (last.channel === "WIFI" && last.jam !== "CLEAR"));
+  // unprotected: jam wanted but nothing is getting through (stall > ~1s)
+  var stalled = (now - lastRx) > 900;
+  var losing = jamWanted && !defended && (stalled || (last.channel === "WIFI" && last.jam !== "CLEAR"));
 
   if (losing) {                               // accrue estimated lost packets at the node's rate
     lostFrac += dt * RATE;
@@ -142,8 +144,11 @@ function renderFeed() {
   var h = "";
   for (var i = 0; i < feed.length; i++) {
     var f = feed[i];
-    h += '<div class="pk"><span class="seq">#' + f.seq + '</span><span class="val">sensor ' + f.val +
-         '</span><span class="tag t-' + f.ch + '">via ' + f.ch + '</span></div>';
+    var lux = (f.val != null && !isNaN(f.val)) ? ((4095 - f.val) / 40).toFixed(1) : "?";
+    var js = '{"node":"jamshield-01","seq":' + f.seq + ',"sensor":"ldr","ldr_adc":' + f.val +
+             ',"lux":' + lux + ',"rssi":' + f.rssi + ',"link":"' + f.ch + '","jam":"' + f.jam + '"}';
+    h += '<div class="pk"><span class="seq">#' + f.seq + '</span><span class="json">' + js +
+         '</span><span class="tag t-' + f.ch + '">' + f.ch + '</span></div>';
   }
   $("feed").innerHTML = h;
 }

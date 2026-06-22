@@ -1,5 +1,5 @@
 /* JamShield PWA service worker - offline app shell. */
-var CACHE = "jamshield-v2";
+var CACHE = "jamshield-v3";
 var ASSETS = ["./", "./index.html", "./app.js", "./mqtt.min.js",
               "./manifest.webmanifest", "./icon.svg"];
 
