@@ -17,8 +17,9 @@
 
 LOG_MODULE_REGISTER(espnow_l2, LOG_LEVEL_INF);
 
-/* RPi4 WiFi MAC — discover with `ip link show wlan0` and fill in (PRD 6.1). */
-static const uint8_t rpi4_mac[6] = {0xDC, 0xA6, 0x32, 0x00, 0x00, 0x00};
+/* Broadcast: any ESP-NOW receiver on the channel hears it (the JamShield
+ * ESP-NOW receiver board listens promiscuously; no need to know its MAC). */
+static const uint8_t rpi4_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 static bool espnow_ready;
 
@@ -27,17 +28,8 @@ static bool espnow_ready;
 #include <esp_now.h>
 #include <esp_wifi.h>
 
-static void espnow_recv_cb(const esp_now_recv_info_t *info, const uint8_t *data,
-			   int len)
-{
-	ARG_UNUSED(data);
-	if (info) {
-		LOG_DBG("ESP-NOW rx %d bytes from %02x:%02x:%02x:%02x:%02x:%02x",
-			len, info->src_addr[0], info->src_addr[1],
-			info->src_addr[2], info->src_addr[3], info->src_addr[4],
-			info->src_addr[5]);
-	}
-}
+/* TX-only: the node sends ESP-NOW; a separate receiver board hears it. No recv
+ * callback (its signature differs across esp-idf versions and we don't need it). */
 
 int espnow_l2_init(void)
 {
@@ -47,8 +39,6 @@ int espnow_l2_init(void)
 		LOG_ERR("esp_now_init failed: %d", (int)ret);
 		return -EIO;
 	}
-
-	(void)esp_now_register_recv_cb(espnow_recv_cb);
 
 	esp_now_peer_info_t peer = {0};
 

@@ -198,20 +198,33 @@ function openPk(seq) {
   if (!f) return;
   var p = f.raw;
   var lux = (p.val != null && !isNaN(p.val)) ? ((4095 - p.val) / 40).toFixed(1) : "?";
+  // Real transport for the channel this packet actually arrived on.
+  var TX = {
+    WIFI:   { proto: "MQTT (QoS 1) over TCP/IP", stack: "802.11 Wi-Fi -> IPv4 -> TCP -> MQTT", port: "broker " + HOST + ":1883", note: "ACK'd, reliable, jammable" },
+    BLE:    { proto: "Bluetooth LE GATT notify", stack: "Bluetooth LE -> L2CAP -> ATT -> GATT", port: "service 0x1234 / char 0x1235", note: "short-range, survives Wi-Fi jam" },
+    ESPNOW: { proto: "ESP-NOW vendor action frame", stack: "802.11 action frame (connectionless)", port: "2.4 GHz, no association", note: "hardest to jam (no AP)" }
+  };
+  var tx = TX[p.channel] || TX.WIFI;
   var rows = [
     ["node", "jamshield-01"], ["sequence", "#" + p.seq], ["sensor", "LDR (ambient light)"],
     ["ldr_adc", p.val + " / 4095"], ["lux (approx)", lux + " lx"],
-    ["delivered over", p.channel], ["link RSSI", p.rssi + " dBm"],
-    ["jam state", p.jam_state], ["received", new Date(f.ts).toLocaleTimeString()]
+    ["link RSSI", p.rssi + " dBm"], ["jam state", p.jam_state],
+    ["received", new Date(f.ts).toLocaleTimeString()]
   ];
   var t = "";
   for (var j = 0; j < rows.length; j++)
     t += '<div class="dr"><span>' + rows[j][0] + '</span><b>' + rows[j][1] + '</b></div>';
+  var txt = '<div class="dr"><span>protocol</span><b>' + tx.proto + '</b></div>' +
+            '<div class="dr"><span>endpoint</span><b>' + tx.port + '</b></div>' +
+            '<div class="dr"><span>nature</span><b>' + tx.note + '</b></div>';
   var pretty = JSON.stringify({ node: "jamshield-01", seq: p.seq, sensor: "ldr",
     ldr_adc: p.val, lux: +lux, rssi: p.rssi, link: p.channel, jam: p.jam_state }, null, 2);
-  $("pkbody").innerHTML = '<div class="chip ' + p.channel + '" style="margin-bottom:12px">' + p.channel +
-    '</div><div class="drows">' + t + '</div><div class="k" style="margin:14px 0 6px">raw payload</div>' +
-    '<pre class="raw">' + pretty + '</pre>';
+  $("pkbody").innerHTML =
+    '<div class="chip ' + p.channel + '" style="margin-bottom:6px">delivered over ' + p.channel + '</div>' +
+    '<div class="stack">' + tx.stack + '</div>' +
+    '<div class="k" style="margin:14px 0 6px">transport</div><div class="drows">' + txt + '</div>' +
+    '<div class="k" style="margin:14px 0 6px">payload fields</div><div class="drows">' + t + '</div>' +
+    '<div class="k" style="margin:14px 0 6px">raw packet</div><pre class="raw">' + pretty + '</pre>';
   $("pkmodal").classList.add("show");
 }
 function closePk(e) { if (!e || e.target.id === "pkmodal" || e.currentTarget.tagName === "SPAN") $("pkmodal").classList.remove("show"); }
