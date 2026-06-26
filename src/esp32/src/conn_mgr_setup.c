@@ -166,7 +166,14 @@ int conn_mgr_send(const struct ble_sensor_payload *bin, const char *json,
 	case JS_CH_BLE:
 		return ble_gatt_send(bin);
 	case JS_CH_ESPNOW:
-		return espnow_send_payload(bin);
+		(void)espnow_send_payload(bin);   /* real ESP-NOW frame over the air */
+		/* No OTA ESP-NOW receiver in this setup -> mirror the same telemetry
+		 * over MQTT so the Pi/app can show the ESP-NOW bearer (logical jam
+		 * keeps WiFi up). The JSON's channel field already reads "ESPNOW". */
+		if (wifi_mqtt_is_connected()) {
+			return wifi_mqtt_publish(JS_ESPNOW_TOPIC, json, json_len);
+		}
+		return 0;
 	default:
 		return -EINVAL;
 	}

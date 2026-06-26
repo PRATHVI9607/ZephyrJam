@@ -82,6 +82,7 @@ def start_wifi(writer: DBWriter, tracker: ChannelTracker, host: str) -> None:
     def on_connect(client, userdata, flags, rc, *a):
         print(f"[wifi] MQTT connected rc={rc}")
         client.subscribe("jamshield/sensor/ldr")
+        client.subscribe("jamshield/sensor/espnow")   # node's ESP-NOW mirror
         client.subscribe("jamshield/events/#")
 
     def on_message(client, userdata, msg):
@@ -96,14 +97,15 @@ def start_wifi(writer: DBWriter, tracker: ChannelTracker, host: str) -> None:
                         "from_ch": p.get("from"), "to_ch": p.get("to"),
                         "detail": "esp32 meta"})
             return
+        ch = "ESPNOW" if msg.topic.endswith("espnow") else "WIFI"
         row = {
             "recv_ts": recv_ts, "esp_ts": p.get("ts_ms"), "seq": p.get("seq"),
-            "channel": "WIFI", "ldr_adc": p.get("ldr_adc"),
+            "channel": ch, "ldr_adc": p.get("ldr_adc"),
             "ldr_lux": p.get("ldr_lux"), "rssi": p.get("rssi"),
             "jam_state": p.get("jam_state"), "cpu_util": p.get("cpu_util"),
             "free_heap": p.get("free_heap"),
         }
-        tracker.observe("WIFI", recv_ts)
+        tracker.observe(ch, recv_ts)
         writer.put(row)
         publish_feed(row)
 
