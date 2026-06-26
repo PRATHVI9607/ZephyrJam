@@ -29,6 +29,8 @@ def role_of(port: str, secs: float = 5.0):
                 return "node"
             if "JAM:" in ln or "JAMMER" in ln:
                 return "jammer"
+            if "ESPNOW " in ln or "ESP-NOW receiver" in ln:
+                return "espnow_rx"
     finally:
         s.close()
     return None
@@ -38,7 +40,7 @@ def main():
     ports = [p.device for p in list_ports.comports()
              if "CP210" in (p.description or "") or "Silicon" in (p.description or "")
              or "CH340" in (p.description or "")]
-    found = {"node": None, "jammer": None}
+    found = {"node": None, "jammer": None, "espnow_rx": None}
     for port in ports:
         r = role_of(port)
         if r and not found[r]:

@@ -12,10 +12,11 @@
     .\run.ps1 -NoJammer             # node only (no 2nd ESP32 connected)
 #>
 param(
-  [string]$Node   = "",
-  [string]$Jammer = "",
-  [string]$PiIP   = "",     # override Pi/broker IP if mDNS (prathvi.local) fails
-  [int]   $Port   = 8080,
+  [string]$Node     = "",
+  [string]$Jammer   = "",
+  [string]$EspNowRx = "",   # ESP-NOW receiver board (Arduino sketch); starts the bridge
+  [string]$PiIP     = "",   # override Pi/broker IP if mDNS (prathvi.local) fails
+  [int]   $Port     = 8080,
   [switch]$SkipBuild,
   [switch]$NoJammer
 )
@@ -34,17 +35,17 @@ Write-Host "==================  JamShield launcher  ==================" -Foregro
 
 # 0) Auto-detect which CP210x board is the node vs the jammer (robust to the
 #    two ESP32s swapping USB COM ports between sessions).
-if (-not $Node -or (-not $Jammer -and -not $NoJammer)) {
-  Write-Host "[0/5] Auto-detecting ESP32 ports..." -ForegroundColor Yellow
-  try {
-    $d = python "$ROOT\scripts\detect_ports.py" | ConvertFrom-Json
-    if (-not $Node   -and $d.node)   { $Node   = $d.node }
-    if (-not $Jammer -and $d.jammer) { $Jammer = $d.jammer }
-    Write-Host "      node=$Node  jammer=$Jammer" -ForegroundColor Green
-  } catch { Write-Host "      auto-detect failed; falling back to defaults" -ForegroundColor DarkYellow }
-}
-if (-not $Node)   { $Node   = "COM6" }
-if (-not $Jammer) { $Jammer = "COM7" }
+Write-Host "[0/5] Auto-detecting ESP32 ports..." -ForegroundColor Yellow
+try {
+  $d = python "$ROOT\scripts\detect_ports.py" | ConvertFrom-Json
+  if (-not $Node     -and $d.node)       { $Node     = $d.node }
+  if (-not $Jammer   -and $d.jammer)     { $Jammer   = $d.jammer }
+  if (-not $EspNowRx -and $d.espnow_rx)  { $EspNowRx = $d.espnow_rx }
+  Write-Host "      node=$Node  jammer=$Jammer  espnow_rx=$EspNowRx" -ForegroundColor Green
+} catch { Write-Host "      auto-detect failed; falling back to defaults" -ForegroundColor DarkYellow }
+if (-not $Node) { $Node = "COM6" }
+# 2nd board is the ESP-NOW receiver (Arduino), not a jammer -> don't flash a jammer.
+if ($EspNowRx -and -not $Jammer) { $NoJammer = $true }
 
 if (-not $SkipBuild) {
   # 1) Detect the Pi / broker IP (best effort via mDNS + SSH key) -----------
@@ -93,16 +94,16 @@ if (-not $SkipBuild) {
   WslBash "tr -d '\r' < /mnt/c/Workspace/IotELL/scripts/copy_flash.sh | bash" | Out-Null
 
   # 3) Build jammer firmware -------------------------------------------------
-  if (-not $NoJammer) {
+  if (-not $NoJammer -and $Jammer) {
     Write-Host "[3/5] Building jammer firmware..." -ForegroundColor Yellow
     WslBash "tr -d '\r' < /mnt/c/Workspace/IotELL/scripts/build_jammer.sh > /tmp/bj.sh; bash /tmp/bj.sh auto" | Select-Object -Last 1
     WslBash "tr -d '\r' < /mnt/c/Workspace/IotELL/scripts/copy_flash_jammer.sh | bash" | Out-Null
-  } else { Write-Host "[3/5] Skipping jammer (--NoJammer)" }
+  } else { Write-Host "[3/5] Skipping jammer" }
 
-  # 4) Flash both boards -----------------------------------------------------
+  # 4) Flash boards ----------------------------------------------------------
   Write-Host "[4/5] Flashing node -> $Node ..." -ForegroundColor Yellow
   Flash $Node "$ROOT\flash"
-  if (-not $NoJammer) {
+  if (-not $NoJammer -and $Jammer) {
     Write-Host "      Flashing jammer -> $Jammer ..." -ForegroundColor Yellow
     Flash $Jammer "$ROOT\flash\jammer"
   }
@@ -111,7 +112,14 @@ if (-not $SkipBuild) {
   Write-Host "[--] SkipBuild: going straight to the dashboard" -ForegroundColor DarkYellow
 }
 
-# 5) Dashboard --------------------------------------------------------------
-Write-Host "[5/5] Starting dashboard at http://127.0.0.1:$Port/ ..." -ForegroundColor Yellow
-$jarg = if ($NoJammer) { "COM_NONE" } else { $Jammer }
+# 5) ESP-NOW bridge (if a receiver board is present) ------------------------
+if ($EspNowRx) {
+  $bip = if ($piip) { $piip } elseif ($PiIP) { $PiIP } else { "10.182.210.137" }
+  Write-Host "[5/6] Starting ESP-NOW bridge: $EspNowRx -> $bip ..." -ForegroundColor Yellow
+  Start-Process python -ArgumentList "$ROOT\scripts\espnow_bridge.py", $EspNowRx, $bip
+}
+
+# 6) Dashboard --------------------------------------------------------------
+Write-Host "[6/6] Starting dashboard at http://127.0.0.1:$Port/ ..." -ForegroundColor Yellow
+$jarg = if ($NoJammer -or -not $Jammer) { "COM_NONE" } else { $Jammer }
 python "$ROOT\dashboard\dashboard.py" --node $Node --jammer $jarg --port $Port
