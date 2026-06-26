@@ -27,6 +27,12 @@ extern int jam_hal_burst(int count);
 #define BURST          64
 #define RETRY_MS       6000
 
+/* Target AP to attack. Defaults to the node's own network (JS_WIFI_SSID).
+ * Override via run.ps1 -JamSsid/-JamPsk to test ANOTHER network YOU OWN or are
+ * authorized (in writing) to test. Single named target only by design. */
+#define JAM_TARGET_SSID JS_WIFI_SSID
+#define JAM_TARGET_PSK  JS_WIFI_PSK
+
 static struct net_if *wifi_iface;
 static volatile bool associated;
 static volatile bool want_jam;   /* set by 's' (RF on), cleared by 'x' (RF off) */
@@ -54,7 +60,7 @@ static void wifi_evt(struct net_mgmt_event_callback *cb, uint32_t event,
 			     sizeof(s)) == 0) {
 			jam_hal_set_bssid(s.bssid);
 			printk("JAM: associated to %s, AP %02x:%02x:%02x:%02x:%02x:%02x ch%d\n",
-			       JS_WIFI_SSID, s.bssid[0], s.bssid[1], s.bssid[2],
+			       JAM_TARGET_SSID, s.bssid[0], s.bssid[1], s.bssid[2],
 			       s.bssid[3], s.bssid[4], s.bssid[5], s.channel);
 		}
 		associated = true;
@@ -72,10 +78,10 @@ static void do_connect(void)
 		(void)net_if_up(wifi_iface);
 	}
 
-	p.ssid = (const uint8_t *)JS_WIFI_SSID;
-	p.ssid_length = sizeof(JS_WIFI_SSID) - 1;
-	p.psk = (const uint8_t *)JS_WIFI_PSK;
-	p.psk_length = sizeof(JS_WIFI_PSK) - 1;
+	p.ssid = (const uint8_t *)JAM_TARGET_SSID;
+	p.ssid_length = sizeof(JAM_TARGET_SSID) - 1;
+	p.psk = (const uint8_t *)JAM_TARGET_PSK;
+	p.psk_length = sizeof(JAM_TARGET_PSK) - 1;
 	p.security = WIFI_SECURITY_TYPE_PSK;
 	p.channel = WIFI_CHANNEL_ANY;
 	p.band = WIFI_FREQ_BAND_2_4_GHZ;

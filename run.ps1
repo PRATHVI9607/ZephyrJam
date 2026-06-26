@@ -16,10 +16,16 @@ param(
   [string]$Jammer   = "",
   [string]$EspNowRx = "",   # ESP-NOW receiver board (Arduino sketch); starts the bridge
   [string]$PiIP     = "",   # override Pi/broker IP if mDNS (prathvi.local) fails
+  [string]$JamSsid  = "",   # point the jammer at ANOTHER network YOU OWN (default: loki)
+  [string]$JamPsk   = "",   # its password
   [int]   $Port     = 8080,
+  [switch]$rf,              # RF-jam scenario: flash node + jammer (WiFi->BLE)
+  [switch]$now,             # logical scenario: node only, jam from app (WiFi->ESP-NOW)
   [switch]$SkipBuild,
   [switch]$NoJammer
 )
+if ($now) { $NoJammer = $true }            # logical jam needs no RF board
+$victim = if ($JamSsid) { $JamSsid } else { "loki" }
 $ErrorActionPreference = "Stop"
 $ROOT = "C:\Workspace\IotELL"
 $HDR  = "$ROOT\src\esp32\include\jamshield.h"
@@ -69,16 +75,26 @@ if (-not $SkipBuild) {
     Write-Host "      Could not detect Pi IP (mDNS down?) - keeping current value in jamshield.h" -ForegroundColor DarkYellow
   }
 
+  # 1a) Point the jammer at a specified target network (default: the node's). --
+  if ($JamSsid) {
+    Write-Host "      Jammer target -> SSID '$JamSsid' (must be a network you own/are authorized to test)" -ForegroundColor Magenta
+    $jm = "$ROOT\src\jammer\src\main.c"
+    $jt = Get-Content $jm -Raw
+    $jt = $jt -replace '(#define JAM_TARGET_SSID\s+).*', "`${1}`"$JamSsid`""
+    if ($JamPsk) { $jt = $jt -replace '(#define JAM_TARGET_PSK\s+).*', "`${1}`"$JamPsk`"" }
+    Set-Content $jm $jt -NoNewline
+  }
+
   # 1b) Detect the victim AP's 2.4 GHz channel and patch the jammer ----------
   if (-not $NoJammer) {
     try {
       $blocks = (netsh wlan show networks mode=bssid | Out-String) -split "`r`n`r`n"
       foreach ($b in $blocks) {
-        if ($b -match ': Loki\b') {
+        if ($b -match (": " + [regex]::Escape($victim) + '\b')) {
           $chs = [regex]::Matches($b, 'Channel\s*:\s*(\d+)') | ForEach-Object { [int]$_.Groups[1].Value }
           $c24 = $chs | Where-Object { $_ -le 14 } | Select-Object -First 1
           if ($c24) {
-            Write-Host "      Loki 2.4GHz channel = $c24 - patching jammer" -ForegroundColor Green
+            Write-Host "      $victim 2.4GHz channel = $c24 - patching jammer" -ForegroundColor Green
             $jm = "$ROOT\src\jammer\src\main.c"
             (Get-Content $jm -Raw) -replace '(#define TARGET_CHANNEL\s+)\d+', "`${1}$c24" | Set-Content $jm -NoNewline
             break
@@ -119,7 +135,20 @@ if ($EspNowRx) {
   Start-Process python -ArgumentList "$ROOT\scripts\espnow_bridge.py", $EspNowRx, $bip
 }
 
-# 6) Dashboard --------------------------------------------------------------
-Write-Host "[6/6] Starting dashboard at http://127.0.0.1:$Port/ ..." -ForegroundColor Yellow
+# Scenario guidance --------------------------------------------------------
+Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+if ($now) {
+  Write-Host " ESP-NOW scenario: in the app set NO-BLE, then press 'Launch jamming attack'" -ForegroundColor Green
+  Write-Host " -> node fails over to ESP-NOW (logical jam keeps WiFi up for the mirror)." -ForegroundColor Green
+} elseif ($rf) {
+  Write-Host " RF scenario: jam with the dashboard 'RF jammer' button (real over-the-air deauth)" -ForegroundColor Green
+  Write-Host " -> node fails over WiFi->BLE. Keep the node in HOP mode." -ForegroundColor Green
+} else {
+  Write-Host " Ready. RF jam = dashboard RF button (WiFi->BLE); ESP-NOW = NO-BLE + app jam button." -ForegroundColor Green
+}
+Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+
+# Dashboard ----------------------------------------------------------------
+Write-Host "Starting dashboard at http://127.0.0.1:$Port/ ..." -ForegroundColor Yellow
 $jarg = if ($NoJammer -or -not $Jammer) { "COM_NONE" } else { $Jammer }
 python "$ROOT\dashboard\dashboard.py" --node $Node --jammer $jarg --port $Port
