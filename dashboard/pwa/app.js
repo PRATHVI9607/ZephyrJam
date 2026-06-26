@@ -21,6 +21,7 @@ var last = { channel: "OFF", jam: "CLEAR", rssi: null, val: "-" };
 
 var delivered = 0, lostGaps = 0, lostFrac = 0, rescued = 0;
 var attackOn = false, attackT0 = 0, failoverMs = null, foMarked = false;
+var prevTs = 0;   // timestamp of the previous delivered packet (for outage timing)
 var rssiHist = [], feed = [], events = [];
 
 /* ---------- connection ---------- */
@@ -71,19 +72,21 @@ function onPacket(p) {
   }
   if (ch !== "WIFI") {                         // a packet survived via a fallback radio
     rescued++;
-    if (!foMarked && attackOn) {               // first fallback packet = failover complete
-      failoverMs = now - attackT0; foMarked = true;
+    if (!foMarked && attackOn) {               // first fallback packet = failover done
+      // Outage = gap from the last delivered packet to this first fallback one.
+      failoverMs = prevTs ? (now - prevTs) : 0; foMarked = true;
       addEvent("defend", "Failover WiFi to " + ch, failoverMs + " ms");
     }
   }
   if (!underAttack && attackOn) {             // recovered: clean WiFi + CLEAR again
     attackOn = false; jamWanted = false; syncJamBtn();
-    addEvent("ok", "Link restored to WiFi", rescued + " rescued, 0 lost");
+    addEvent("ok", "Link restored to WiFi", rescued + " rescued");
   }
 
   last.channel = ch; last.jam = jam;
   if (p.rssi != null) last.rssi = p.rssi;
   if (p.val != null) last.val = p.val;
+  prevTs = now;
 }
 
 /* ---------- periodic render + stall-based loss ---------- */

@@ -39,7 +39,7 @@ int main(void)
 		LOG_ERR("BLE init failed (continuing without BLE bearer)");
 	}
 
-	(void)espnow_l2_init(); /* -ENOTSUP if CONFIG_JS_ESPNOW=n */
+	(void)espnow_l2_init(); /* raw-802.11 ESP-NOW TX (espnow_hal.c) */
 
 	if (wifi_mqtt_connect() != 0) {
 		LOG_ERR("WiFi connect kickoff failed");
