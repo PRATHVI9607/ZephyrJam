@@ -11,6 +11,7 @@ target_sources(app PRIVATE
     src/wifi_mqtt.c
     src/ble_gatt.c
     src/espnow_l2.c
+    src/espnow_hal.c
     src/conn_mgr_setup.c
     src/payload_thread.c
     src/esp_ps_shim.c
