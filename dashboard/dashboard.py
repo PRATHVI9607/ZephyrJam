@@ -400,19 +400,35 @@ setInterval(tick,400);tick();
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--node", default="COM6")
-    ap.add_argument("--jammer", default="COM7")
+    ap.add_argument("--node", default="")
+    ap.add_argument("--jammer", default="")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--no-open", action="store_true")
     args = ap.parse_args()
 
-    threading.Thread(target=node_reader, args=(args.node, args.baud), daemon=True).start()
-    if args.jammer and args.jammer.upper() != "COM_NONE":
-        open_jammer(args.jammer, args.baud)
+    node, jammer = args.node, args.jammer
+    # Auto-detect which board is which if not given (robust to USB port swaps).
+    if not node or (not jammer and (jammer or "").upper() != "COM_NONE"):
+        import os
+        import subprocess
+        try:
+            det = os.path.join(os.path.dirname(__file__), "..", "scripts", "detect_ports.py")
+            d = json.loads(subprocess.check_output(["python", det], text=True, timeout=40))
+            node = node or d.get("node") or "COM6"
+            if not jammer:
+                jammer = d.get("jammer") or ""
+            print(f"[dashboard] auto-detected node={node} jammer={jammer}")
+        except Exception as exc:
+            print(f"[dashboard] port auto-detect failed ({exc}); using node={node or 'COM6'}")
+            node = node or "COM6"
+
+    threading.Thread(target=node_reader, args=(node, args.baud), daemon=True).start()
+    if jammer and jammer.upper() != "COM_NONE":
+        open_jammer(jammer, args.baud)
 
     url = f"http://127.0.0.1:{args.port}/"
-    print(f"[dashboard] node={args.node} jammer={args.jammer}  ->  {url}")
+    print(f"[dashboard] node={node} jammer={jammer}  ->  {url}")
     if not args.no_open:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()

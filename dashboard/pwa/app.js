@@ -173,22 +173,25 @@ function drawSpark(cls) {
   var W = c.width, H = c.height;
   ctx.clearRect(0, 0, W, H);
   if (rssiHist.length < 2) return;
-  var lo = -95, hi = -20, step = W / 89;
+  var lo = -100, hi = 0, step = W / 89;     // full dBm range so strong signals fit
   var col = cls === "secure" ? "#34d39a" : (cls === "attack" ? "#5b9dff" : "#ff5d6e");
+  function yOf(r) {
+    var t = (r - lo) / (hi - lo);
+    if (t < 0) t = 0; else if (t > 1) t = 1;  // clamp into the canvas
+    return H - t * (H - 6) - 3;
+  }
   var n = rssiHist.length, x0 = W - (n - 1) * step;
   ctx.beginPath();
   for (var i = 0; i < n; i++) {
     var x = W - (n - 1 - i) * step;
-    var y = H - ((rssiHist[i] - lo) / (hi - lo)) * (H - 6) - 3;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    if (i === 0) ctx.moveTo(x, yOf(rssiHist[i])); else ctx.lineTo(x, yOf(rssiHist[i]));
   }
   ctx.lineWidth = 2; ctx.strokeStyle = col; ctx.lineJoin = "round"; ctx.stroke();
   ctx.lineTo(W, H); ctx.lineTo(x0, H); ctx.closePath();
   var g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, col + "44"); g.addColorStop(1, col + "00");
   ctx.fillStyle = g; ctx.fill();
-  var ly = H - ((rssiHist[n - 1] - lo) / (hi - lo)) * (H - 6) - 3;
-  ctx.beginPath(); ctx.arc(W - 2, ly, 3, 0, 7); ctx.fillStyle = col; ctx.fill();
+  ctx.beginPath(); ctx.arc(W - 2, yOf(rssiHist[n - 1]), 3, 0, 7); ctx.fillStyle = col; ctx.fill();
 }
 
 /* ---------- packet detail sheet ---------- */
