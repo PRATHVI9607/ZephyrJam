@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JamShield Pokedex - Learn Everything</title>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161b22; --panel2:#1b2230; --line:rgba(255,255,255,.09);
+  --txt:#e9eef6; --mut:#9aa6b8; --code:#0b0e14;
+  --red:#ee1515; --red2:#c81010; --yellow:#ffcb05; --gold:#b8860b;
+  --wifi:#34d39a; --ble:#5b9dff; --espnow:#f5a45a; --jam:#ff5d6e; --node:#ffcb05;
+  --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --nav:264px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.6;
+  -webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background:
+   radial-gradient(700px 500px at 100% -5%,rgba(238,21,21,.12),transparent 60%),
+   radial-gradient(600px 500px at -5% 100%,rgba(255,203,5,.08),transparent 60%);}
+a{color:inherit}
+code,pre{font-family:var(--mono)}
+
+/* ---------- Pokeball ---------- */
+.pball{width:22px;height:22px;border-radius:50%;flex:none;position:relative;
+  background:linear-gradient(#ee1515 0 50%,#f7f7f7 50% 100%);
+  border:2px solid #111;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+.pball::before{content:"";position:absolute;left:-2px;right:-2px;top:calc(50% - 2px);height:3px;background:#111}
+.pball::after{content:"";position:absolute;left:50%;top:50%;width:7px;height:7px;border-radius:50%;
+  transform:translate(-50%,-50%);background:#fff;border:2px solid #111}
+
+/* ---------- Sidebar ---------- */
+.side{position:fixed;top:0;left:0;bottom:0;width:var(--nav);z-index:40;overflow-y:auto;
+  background:linear-gradient(180deg,#20262f,#12161c);border-right:1px solid var(--line);
+  padding:18px 14px 40px}
+.brand{display:flex;align-items:center;gap:11px;padding:6px 8px 16px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.brand .pball{width:32px;height:32px}
+.brand h1{font-size:16px;font-weight:800;letter-spacing:-.2px;line-height:1.05}
+.brand small{display:block;color:var(--mut);font-size:11px;font-weight:600;letter-spacing:.4px;margin-top:2px}
+.nav a{display:flex;gap:10px;align-items:center;padding:8px 11px;border-radius:9px;color:var(--mut);
+  text-decoration:none;font-size:13.5px;font-weight:600;transition:.14s}
+.nav a .n{font-family:var(--mono);font-size:11px;color:#6b7686;min-width:22px}
+.nav a:hover{background:rgba(255,255,255,.05);color:var(--txt)}
+.nav a.on{background:rgba(238,21,21,.14);color:#ffd9d9;box-shadow:inset 0 0 0 1px rgba(238,21,21,.4)}
+.nav a.on .n{color:var(--red)}
+
+/* ---------- Main ---------- */
+.main{margin-left:var(--nav);max-width:960px;padding:0 32px 120px}
+.topbar{display:none}
+section{padding:56px 0 8px;border-top:1px solid var(--line)}
+section:first-of-type{border-top:0}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--red)}
+h2{font-size:31px;font-weight:800;letter-spacing:-.6px;margin:8px 0 6px;display:flex;align-items:center;gap:12px}
+h3{font-size:19px;font-weight:750;letter-spacing:-.2px;margin:30px 0 8px}
+h4{font-size:15px;font-weight:750;margin:20px 0 6px;color:#dbe4f0}
+p{margin:10px 0;color:#d3dbe7}
+p.lead{font-size:17px;color:#e9eef6}
+ul,ol{margin:10px 0 10px 22px}li{margin:5px 0;color:#d3dbe7}
+strong{color:#fff;font-weight:700}
+.hero{padding:44px 0 20px;border:0}
+.hero h2{font-size:40px}
+.hi{display:inline-block;padding:2px 7px;border-radius:6px;background:rgba(255,203,5,.16);color:var(--yellow);font-weight:700}
+.mut{color:var(--mut)}
+
+/* cards / callouts */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.grid{display:grid;gap:14px;margin:16px 0}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+.note{border-left:3px solid var(--yellow);background:rgba(255,203,5,.06);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+.note b{color:var(--yellow)}
+.warn{border-left:3px solid var(--jam);background:rgba(255,93,110,.07);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+.warn b{color:var(--jam)}
+.tip{border-left:3px solid var(--wifi);background:rgba(52,211,154,.06);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+.tip b{color:var(--wifi)}
+
+/* type badges */
+.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:800;
+  letter-spacing:.4px;border:1px solid;text-transform:uppercase}
+.b-wifi{color:var(--wifi);border-color:rgba(52,211,154,.5);background:rgba(52,211,154,.12)}
+.b-ble{color:var(--ble);border-color:rgba(91,157,255,.5);background:rgba(91,157,255,.12)}
+.b-espnow{color:var(--espnow);border-color:rgba(245,164,90,.5);background:rgba(245,164,90,.12)}
+.b-jam{color:var(--jam);border-color:rgba(255,93,110,.5);background:rgba(255,93,110,.12)}
+.b-node{color:var(--node);border-color:rgba(255,203,5,.5);background:rgba(255,203,5,.12)}
+
+/* code */
+pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:15px 16px;overflow:auto;
+  font-size:12.5px;line-height:1.55;margin:12px 0;color:#c9d4e5}
+:not(pre)>code{background:rgba(255,255,255,.08);padding:1.5px 6px;border-radius:5px;font-size:12.5px;color:#ffd9a8}
+.cmt{color:#6b7686}
+
+/* tables */
+.tw{overflow-x:auto;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+td code{white-space:nowrap}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+/* flow diagram */
+.flow{font-family:var(--mono);font-size:12.5px;background:var(--code);border:1px solid var(--line);
+  border-radius:12px;padding:16px;overflow-x:auto;white-space:pre;color:#c9d4e5;line-height:1.5}
+
+.foot{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px}
+
+/* mobile */
+@media(max-width:900px){
+  :root{--nav:0px}
+  .side{transform:translateX(-100%);transition:transform .25s;width:280px}
+  .side.open{transform:none}
+  .main{margin-left:0;padding:0 18px 100px;max-width:100%}
+  .topbar{display:flex;position:sticky;top:0;z-index:30;align-items:center;gap:12px;
+    background:rgba(14,17,22,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+    padding:12px 16px;margin:0 -18px 6px}
+  .topbar button{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:9px;
+    padding:8px 12px;font-weight:800;cursor:pointer}
+  .g2,.g3{grid-template-columns:1fr}
+  .hero h2{font-size:30px}h2{font-size:25px}
+}
+.scrim{display:none}
+@media(max-width:900px){.scrim.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35}}
+</style>
+</head>
+<body>
+
+<aside class="side" id="side">
+  <div class="brand"><span class="pball"></span>
+    <div><h1>JamShield Pokedex</h1><small>LEARN IT ALL FROM ZERO</small></div>
+  </div>
+  <nav class="nav" id="nav">
+    <a href="#start"><span class="n">01</span> Start Here</a>
+    <a href="#big"><span class="n">02</span> Big Picture</a>
+    <a href="#hardware"><span class="n">03</span> The Hardware</a>
+    <a href="#esp32"><span class="n">04</span> ESP32 101</a>
+    <a href="#flash"><span class="n">05</span> Flashing an ESP32</a>
+    <a href="#python"><span class="n">06</span> ESP32 + Python</a>
+    <a href="#zephyr"><span class="n">07</span> Zephyr RTOS</a>
+    <a href="#radios"><span class="n">08</span> The 3 Radios</a>
+    <a href="#mqtt"><span class="n">09</span> MQTT</a>
+    <a href="#jamming"><span class="n">10</span> Jamming</a>
+    <a href="#detect"><span class="n">11</span> Detect &amp; Failover</a>
+    <a href="#pi"><span class="n">12</span> The Pi Hub</a>
+    <a href="#app"><span class="n">13</span> The App (PWA)</a>
+    <a href="#cloud"><span class="n">14</span> The Cloud</a>
+    <a href="#files"><span class="n">15</span> Every File</a>
+    <a href="#run"><span class="n">16</span> Run It Yourself</a>
+    <a href="#teacher"><span class="n">17</span> Teacher Questions</a>
+    <a href="#glossary"><span class="n">18</span> Glossary</a>
+  </nav>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<main class="main">
+  <div class="topbar"><button id="menuBtn">&#9776; Menu</button><span class="pball"></span><b>JamShield Pokedex</b></div>
+
+  <!-- 01 -->
+  <section id="start" class="hero">
+    <div class="eyebrow">Pokedex Entry 01</div>
+    <h2><span class="pball"></span> Start Here</h2>
+    <p class="lead">JamShield is a <span class="hi">jamming-resilient sensor node</span>. Normal WiFi gadgets die the instant someone attacks their WiFi. JamShield <strong>detects the attack in a fraction of a second and hops to a different radio</strong>, so the data keeps flowing.</p>
+    <p>Think of it like a Pokemon that switches type when hit by a super-effective move. Attack its WiFi? It becomes a Bluetooth type. Block that too? It goes ESP-NOW. The data never stops.</p>
+    <div class="grid g3">
+      <div class="card"><span class="badge b-node">The Node</span><p class="mut" style="margin-top:8px">An ESP32 chip that reads a sensor and sends the data. The star of the show.</p></div>
+      <div class="card"><span class="badge b-jam">The Jammer</span><p class="mut" style="margin-top:8px">A second ESP32 that attacks the WiFi (the villain), so we can prove the defense works.</p></div>
+      <div class="card"><span class="badge" style="color:#ff5d6e;border-color:rgba(255,93,110,.4)">The Pi</span><p class="mut" style="margin-top:8px">A Raspberry Pi: the base camp that collects the data and shows the app.</p></div>
+    </div>
+    <div class="note"><b>Who is this for?</b> Someone who knows nothing about this project. By the end you will understand every wire, every file, and be ready for teacher questions. Read top to bottom, or jump around with the Pokedex on the left.</div>
+  </section>
+
+  <!-- 02 -->
+  <section id="big">
+    <div class="eyebrow">Pokedex Entry 02</div>
+    <h2><span class="pball"></span> The Big Picture</h2>
+    <p>Three devices talk to each other. The <strong>Node</strong> sends sensor data. The <strong>Pi</strong> collects it and hosts the app + a cloud link. The <strong>Jammer</strong> attacks. Here is the whole system on one screen:</p>
+    <div class="flow">   ESP32 NODE                         RASPBERRY PI  (the hub)              YOU
+   +---------+     WiFi / MQTT   +-------------------------------+   +-----------+
+   | sensor  | =================>|  Mosquitto  (MQTT broker)     |==>| Phone app |
+   | + radios| ---- BLE -------->|  receiver.py (3-channel)      |   |  (PWA)    |
+   |         | .... ESP-NOW ....>|  SQLite log                   |   +-----------+
+   +---------+                   |  PWA host  +  HiveMQ cloud    |==>| Cloud     |
+        ^                        +-------------------------------+   +-----------+
+        |  deauth attack
+   +---------+
+   | JAMMER  |   (2nd ESP32, attacks the node's WiFi)
+   +---------+</div>
+    <p>The single most important idea: the node has <strong>three radios</strong> and a brain that decides which one to use. When WiFi gets jammed, the brain switches to the next radio automatically. That switch is called a <strong>failover</strong>.</p>
+    <div class="tip"><b>One-line summary:</b> attack the WiFi, the node hops to Bluetooth or ESP-NOW, and the sensor data survives. The app shows it happening live.</div>
+  </section>
+
+  <!-- 03 -->
+  <section id="hardware">
+    <div class="eyebrow">Pokedex Entry 03</div>
+    <h2><span class="pball"></span> The Hardware</h2>
+    <h3>ESP32 (x2)</h3>
+    <p>A tiny, cheap (~$5) microcontroller with <strong>WiFi and Bluetooth built in</strong>. It is not a full computer; it runs one program you load onto it. We use two: one as the Node, one as the Jammer. Key facts:</p>
+    <ul>
+      <li><strong>Dual-core CPU</strong> at 240 MHz, ~520 KB of RAM (kilobytes, not gigabytes).</li>
+      <li><strong>WiFi + Bluetooth LE</strong> radios on-chip. Also does <strong>ESP-NOW</strong> (an Espressif-only radio protocol).</li>
+      <li><strong>GPIO pins</strong> to connect sensors, and an <strong>ADC</strong> (analog-to-digital converter) to read analog sensors like a light sensor.</li>
+      <li>Talks to your PC over <strong>USB</strong> (a USB-to-serial chip, usually CP210x, gives it a COM port).</li>
+    </ul>
+    <h3>Raspberry Pi 4</h3>
+    <p>A real little Linux computer (credit-card size). It runs services 24/7: the MQTT broker, our Python receiver, the app web server, and the cloud bridge. It is the <strong>hub</strong> everything reports to.</p>
+    <h3>LDR (Light Dependent Resistor)</h3>
+    <p>A cheap light sensor. Its resistance changes with light. Wired as a <strong>voltage divider</strong> into an ESP32 ADC pin (GPIO34), so the node can read "how bright is it" as a number 0-4095. This is the "sensor data" the node sends. (Any sensor would do; light is just easy to demo by covering it.)</p>
+    <div class="note"><b>Why these parts?</b> ESP32 = cheap radio-rich microcontroller, perfect for IoT. Pi = enough power to run servers. LDR = a real physical signal so the demo is not fake numbers.</div>
+  </section>
+
+  <!-- 04 -->
+  <section id="esp32">
+    <div class="eyebrow">Pokedex Entry 04</div>
+    <h2><span class="pball"></span> ESP32 101</h2>
+    <p>An ESP32 runs <strong>one firmware</strong> (program) at a time. To change what it does, you compile new firmware and <strong>flash</strong> it (write it into the chip's flash memory). There are three popular ways to write that firmware:</p>
+    <div class="tw"><table>
+      <tr><th>Way</th><th>Language</th><th>Good for</th><th>We use it?</th></tr>
+      <tr><td><strong>Arduino</strong></td><td>C++ (simple)</td><td>Beginners, quick sketches, huge library set</td><td>Yes, for the ESP-NOW receiver sketch</td></tr>
+      <tr><td><strong>ESP-IDF</strong></td><td>C</td><td>Full ESP32 power, Espressif's official SDK</td><td>No (but it is the fallback for hard ESP-only features)</td></tr>
+      <tr><td><strong>Zephyr RTOS</strong></td><td>C</td><td>Real-time, multi-threaded, portable</td><td>Yes, the Node + Jammer run Zephyr</td></tr>
+      <tr><td><strong>MicroPython</strong></td><td>Python</td><td>Learning, fast experiments</td><td>No (too slow/limited for real-time failover)</td></tr>
+    </table></div>
+    <h3>The key pins</h3>
+    <ul>
+      <li><strong>EN</strong> (enable/reset) and <strong>GPIO0</strong> (BOOT): the two "magic" pins. Holding GPIO0 low during reset puts the chip in <strong>download mode</strong> so you can flash it.</li>
+      <li><strong>GPIO34</strong>: our LDR sensor input (ADC).</li>
+      <li><strong>TX/RX</strong>: serial pins, routed through the USB chip so your PC sees a COM port at 115200 baud.</li>
+    </ul>
+    <div class="tip"><b>Mental model:</b> ESP32 = a phone's radio chip with a small brain. You give it a job (firmware), it does that one job forever until you flash a new one.</div>
+  </section>
+
+  <!-- 05 -->
+  <section id="flash">
+    <div class="eyebrow">Pokedex Entry 05</div>
+    <h2><span class="pball"></span> Flashing an ESP32</h2>
+    <p>"Flashing" = copying the compiled firmware into the ESP32 over USB. The tool is <code>esptool</code> (a Python program). Steps:</p>
+    <ol>
+      <li>Plug the ESP32 into USB. It appears as a COM port (Windows: <code>COM6</code>, Linux: <code>/dev/ttyUSB0</code>).</li>
+      <li>Build the firmware. That produces 3 files: <code>bootloader.bin</code>, <code>partition-table.bin</code>, <code>zephyr.bin</code> (the app).</li>
+      <li>Run esptool to write them to the right memory addresses:</li>
+    </ol>
+    <pre>python -m esptool --chip esp32 -p COM6 -b 460800 write_flash --flash_size detect \
+  0x1000  bootloader.bin \
+  0x8000  partition-table.bin \
+  0x10000 zephyr.bin</pre>
+    <p>Those hex numbers (<code>0x1000</code> etc.) are <strong>flash memory addresses</strong>: bootloader first, then the partition table, then the app. esptool resets the chip, uploads, verifies each block ("Hash of data verified"), and reboots it.</p>
+    <h4>If it will not connect</h4>
+    <ul>
+      <li>Hold the <strong>BOOT</strong> button while esptool says "Connecting...", release after. That forces download mode.</li>
+      <li>Only one program can own a COM port at a time. Close serial monitors / Arduino IDE first.</li>
+    </ul>
+    <p>In this project you never type that by hand: <code>run.ps1</code> auto-detects the port, builds, and flashes for you. But now you know what it is doing under the hood.</p>
+    <div class="note"><b>Monitor the output:</b> after flashing, open the serial port at 115200 baud to read the node's log (<code>scripts/capture_win.py COM6</code>). You will see it join WiFi, connect MQTT, and print <code>STAT {...}</code> lines.</div>
+  </section>
+
+  <!-- 06 -->
+  <section id="python">
+    <div class="eyebrow">Pokedex Entry 06</div>
+    <h2><span class="pball"></span> ESP32 + Python</h2>
+    <p>Two different "Python + ESP32" ideas. Do not mix them up (a classic teacher trap):</p>
+    <h3>1. Python that runs ON your PC to talk TO the ESP32</h3>
+    <p>This is what we use. The ESP32 runs C firmware; <strong>Python on the laptop/Pi talks to it</strong> over USB serial or over the network. Examples in this project:</p>
+    <ul>
+      <li><code>esptool</code> (Python) flashes the chip.</li>
+      <li><code>pyserial</code> reads the node's <code>STAT</code> lines over USB (used by <code>dashboard.py</code>, <code>detect_ports.py</code>, <code>capture_win.py</code>).</li>
+      <li><code>paho-mqtt</code> (Python) receives the node's MQTT data on the Pi (<code>receiver.py</code>).</li>
+    </ul>
+    <pre><span class="cmt"># Read a sensor value from the ESP32 over USB in plain Python:</span>
+import serial, json
+s = serial.Serial("COM6", 115200, timeout=1)
+while True:
+    line = s.readline().decode("utf-8", "ignore").strip()
+    if line.startswith("STAT "):
+        data = json.loads(line[5:])
+        print("light:", data["ldr"], " channel:", data["ch"])</pre>
+    <h3>2. Python that runs ON the ESP32 (MicroPython)</h3>
+    <p>MicroPython is a tiny Python that runs directly on the chip. Great for learning. You would flash the MicroPython firmware, then upload <code>.py</code> files. Example of what an ESP32 sketch looks like in MicroPython:</p>
+    <pre><span class="cmt"># This runs ON the ESP32 (MicroPython), not the PC:</span>
+from machine import ADC, Pin
+import time
+ldr = ADC(Pin(34)); ldr.atten(ADC.ATTN_11DB)
+while True:
+    print("light =", ldr.read())   <span class="cmt"># 0..4095</span>
+    time.sleep(1)</pre>
+    <div class="warn"><b>Why we did NOT use MicroPython for the node:</b> the node needs <strong>real-time</strong> behavior (detect a jam in 100 ms, run three radios, switch instantly). Python on a microcontroller is too slow and not real-time enough. That is why the node is written in C on Zephyr. MicroPython is perfect for learning, not for this job.</div>
+  </section>
+
+  <!-- 07 -->
+  <section id="zephyr">
+    <div class="eyebrow">Pokedex Entry 07</div>
+    <h2><span class="pball"></span> Zephyr RTOS</h2>
+    <p>Zephyr is a tiny <strong>real-time operating system</strong> for microcontrollers. Not Linux. It fits in kilobytes and its whole job is doing the right thing <strong>at the right time, every time</strong>. The node firmware runs on Zephyr.</p>
+    <h3>Threads + a priority scheduler</h3>
+    <p>Instead of one big loop, the program is split into independent <strong>threads</strong>. A <strong>scheduler</strong> runs them by priority: <strong>lower number = higher priority</strong>, and a high-priority thread instantly interrupts (preempts) a lower one. JamShield's threads:</p>
+    <div class="tw"><table>
+      <tr><th>Thread</th><th>Priority</th><th>Period</th><th>Job</th></tr>
+      <tr><td>jam_detect</td><td><strong>2 (highest)</strong></td><td>100 ms</td><td>Watch RSSI + loss, run the jam state machine</td></tr>
+      <tr><td>sensor</td><td>5</td><td>1000 ms</td><td>Read the light sensor</td></tr>
+      <tr><td>payload</td><td>6</td><td>500 ms</td><td>Build + send each packet</td></tr>
+      <tr><td>control / button</td><td>7 (lowest)</td><td>event</td><td>USB commands / BOOT button</td></tr>
+    </table></div>
+    <p>So if a packet is being sent (priority 6) and a jam needs detecting (priority 2), the scheduler <strong>pauses the send, runs detection, then resumes</strong>. That guarantee is why detection is always on time.</p>
+    <h3>Other Zephyr concepts you should name-drop</h3>
+    <ul>
+      <li><strong>Devicetree</strong> (the <code>.overlay</code> file): describes hardware as data. The code asks for the "LDR ADC channel" by role, not by raw pin, so the same code works on other boards.</li>
+      <li><strong>Kconfig</strong> (<code>prj.conf</code>): turn features on/off with <code>CONFIG_WIFI=y</code>, <code>CONFIG_BT=y</code>. Only enabled features get compiled in, so the image stays small.</li>
+      <li><strong>west</strong>: the build tool. <code>west build</code> compiles, <code>west flash</code> loads it.</li>
+      <li><strong>Static memory + integer math</strong>: no <code>malloc</code> in threads, no floating point in high-priority threads (it can corrupt the stack on this chip). That is why light is stored as <code>lux_x10</code> (lux times 10, an integer).</li>
+      <li><strong>Safe sharing</strong>: threads share data using a <strong>mutex</strong> (the LDR reading) and <strong>atomics</strong> (the sequence counter), so nothing corrupts.</li>
+    </ul>
+    <div class="tip"><b>Why Zephyr over Arduino here?</b> Arduino gives you one <code>loop()</code> and global state. Zephyr gives real threads with guaranteed timing, plus full WiFi + Bluetooth stacks. For a device that must detect an attack and switch radios in milliseconds, you need that determinism.</div>
+  </section>
+
+  <!-- 08 -->
+  <section id="radios">
+    <div class="eyebrow">Pokedex Entry 08</div>
+    <h2><span class="pball"></span> The 3 Radios (Types)</h2>
+    <p>The node can send over three different radios. The brain (bearer manager) uses them in priority order. Think of them as the node's three types:</p>
+    <div class="grid g3">
+      <div class="card"><span class="badge b-wifi">WiFi</span>
+        <p class="mut" style="margin-top:8px">Primary. Long range, fast, needs an access point (router). Sends data as <strong>MQTT</strong> over the internet/LAN. This is what gets jammed.</p></div>
+      <div class="card"><span class="badge b-ble">BLE</span>
+        <p class="mut" style="margin-top:8px">Bluetooth Low Energy. Short range, no router needed, direct to the Pi. Immune to WiFi deauth attacks. First fallback.</p></div>
+      <div class="card"><span class="badge b-espnow">ESP-NOW</span>
+        <p class="mut" style="margin-top:8px">Espressif's connectionless radio: no router, no pairing, just broadcast. Hardest to jam. Last resort.</p></div>
+    </div>
+    <p>The order of failover is <strong>WiFi &rarr; BLE &rarr; ESP-NOW</strong>. Each is harder to knock out than the last. Every packet carries a <strong>sequence number</strong> so we can prove none were lost during a switch.</p>
+    <h4>Protocol hopping (the whole trick)</h4>
+    <p>"Protocol hopping" just means: if the current radio fails, jump to the next working one. The node keeps its WiFi connection alive even while sending on BLE, so it can tell the moment WiFi comes back and hop home.</p>
+    <div class="note"><b>ESP-NOW note:</b> the Pi cannot receive ESP-NOW (it has no ESP32 radio). So for the demo the node also mirrors its ESP-NOW data over MQTT so the app can show it. The real ESP-NOW frames still go out over the air.</div>
+  </section>
+
+  <!-- 09 -->
+  <section id="mqtt">
+    <div class="eyebrow">Pokedex Entry 09</div>
+    <h2><span class="pball"></span> MQTT</h2>
+    <p>MQTT is the messaging language of IoT. It is a <strong>publish/subscribe</strong> system with a middleman called a <strong>broker</strong> (we run <strong>Mosquitto</strong> on the Pi).</p>
+    <ul>
+      <li><strong>Publish</strong>: a device sends a message to a named <strong>topic</strong> (like <code>jamshield/sensor/ldr</code>).</li>
+      <li><strong>Subscribe</strong>: any device that wants those messages subscribes to that topic. The broker delivers.</li>
+      <li>Senders and receivers never talk directly; the broker connects them. Add a new listener any time without changing the node.</li>
+    </ul>
+    <h4>The topics in this project</h4>
+    <div class="tw"><table>
+      <tr><th>Topic</th><th>Who publishes</th><th>What</th></tr>
+      <tr><td><code>jamshield/sensor/ldr</code></td><td>Node (WiFi)</td><td>Sensor telemetry JSON</td></tr>
+      <tr><td><code>jamshield/sensor/espnow</code></td><td>Node (ESP-NOW mirror)</td><td>ESP-NOW telemetry</td></tr>
+      <tr><td><code>jamshield/feed</code></td><td>Pi receiver</td><td>Unified feed (WiFi+BLE+ESP-NOW) for the app</td></tr>
+      <tr><td><code>jamshield/control</code></td><td>App / dashboard</td><td>Commands: JAM, CLEAR, HOP, NOHOP, NOBLE</td></tr>
+    </table></div>
+    <h4>QoS (Quality of Service)</h4>
+    <p>MQTT can guarantee delivery. We use <strong>QoS 1</strong>: every message gets an acknowledgement (<strong>PUBACK</strong>) back from the broker. The node counts sent vs acked, and <strong>missing acks = packet loss = a signal that WiFi is being jammed</strong>. Clever reuse.</p>
+    <h4>WebSockets</h4>
+    <p>Browsers cannot speak raw MQTT. So Mosquitto also listens on port <strong>9001 as WebSockets</strong>, and the phone app uses <code>mqtt.js</code> to connect over <code>ws://pi-ip:9001</code>. Same MQTT, browser-friendly transport.</p>
+  </section>
+
+  <!-- 10 -->
+  <section id="jamming">
+    <div class="eyebrow">Pokedex Entry 10</div>
+    <h2><span class="pball"></span> Jamming <span class="badge b-jam" style="font-size:11px">the attack</span></h2>
+    <p>WiFi has a weakness: <strong>management frames are not authenticated</strong> on WPA2 without PMF. One type, the <strong>deauthentication (deauth) frame</strong>, means "you are disconnected, leave now." A device cannot tell a real one from a fake one, so it just obeys.</p>
+    <h4>What the Jammer does (3 steps)</h4>
+    <ol>
+      <li><strong>Joins</strong> your WiFi like a normal device, to learn the router's ID (BSSID) and lock onto its channel.</li>
+      <li><strong>Forges</strong> deauth frames that look like they came from the router.</li>
+      <li><strong>Floods</strong> them thousands per second (<code>esp_wifi_80211_tx</code>). The node gets kicked off, tries to reconnect, gets kicked again, forever. That is the jam.</li>
+    </ol>
+    <p>This is <strong>protocol jamming</strong> (tricking devices with fake control messages), not <strong>noise jamming</strong> (blasting raw radio energy). Tiny power, pure cleverness.</p>
+    <div class="warn"><b>Legal + ethical:</b> deauth attacks are indiscriminate and <strong>illegal on any network you do not own or lack written permission to test</strong>. Point it only at your own access point. Modern WiFi (WPA3, or WPA2 with 802.11w / PMF) <strong>signs</strong> management frames, so a forged deauth is ignored and the attack fails. Mentioning that in a viva shows you understand the defense.</div>
+    <h4>The two jam buttons</h4>
+    <ul>
+      <li><strong>RF jammer</strong> (2nd ESP32): the real over-the-air attack above.</li>
+      <li><strong>App / USB "logical" jam</strong>: a software flag that tells the node "act jammed." No frames sent, but the node runs its <strong>real</strong> detection and failover. Reliable for demos; the attack is simulated but the response is 100% real.</li>
+    </ul>
+  </section>
+
+  <!-- 11 -->
+  <section id="detect">
+    <div class="eyebrow">Pokedex Entry 11</div>
+    <h2><span class="pball"></span> Detect &amp; Failover</h2>
+    <p>The detector thread samples every 100 ms and watches <strong>two signals at once</strong> to avoid false alarms:</p>
+    <ol>
+      <li><strong>RSSI</strong>: WiFi signal strength (in dBm, like -40 = strong, -85 = weak). A jam makes it collapse.</li>
+      <li><strong>Packet loss %</strong>: from the missing MQTT acks (see QoS above).</li>
+    </ol>
+    <p>Only when both look bad (or a logical jam is forced), and it stays bad for a few samples in a row, does it raise the alarm. It runs a <strong>state machine</strong>:</p>
+    <div class="flow">   CLEAR  --degraded-->  SUSPECTED  --confirmed (3+ samples)-->  CONFIRMED
+     ^                                                              |
+     +----------------  RECOVERING  <-- signal + acks return -------+</div>
+    <p>When it hits <strong>CONFIRMED</strong>, it calls the <strong>bearer manager</strong> which does the failover: WiFi &rarr; BLE (or &rarr; ESP-NOW in NO-BLE mode). While failed over, it keeps watching WiFi; when it recovers, it hops back home.</p>
+    <h4>The three modes (for the demo)</h4>
+    <div class="tw"><table>
+      <tr><th>Mode</th><th>On jam</th><th>Result</th></tr>
+      <tr><td><span class="badge b-wifi">HOP</span></td><td>WiFi &rarr; BLE &rarr; ESP-NOW</td><td>Data <strong>saved</strong> (the win)</td></tr>
+      <tr><td><span class="badge b-jam">NO-HOP</span></td><td>Stay on WiFi</td><td>Data <strong>lost</strong> (shows the problem)</td></tr>
+      <tr><td><span class="badge b-espnow">NO-BLE</span></td><td>WiFi &rarr; ESP-NOW (skip BLE)</td><td>Data saved via ESP-NOW</td></tr>
+    </table></div>
+    <div class="tip"><b>The whole demo in one sentence:</b> HOP + jam keeps the data alive on another radio; NO-HOP + jam loses it. Same attack, with and without JamShield.</div>
+  </section>
+
+  <!-- 12 -->
+  <section id="pi">
+    <div class="eyebrow">Pokedex Entry 12</div>
+    <h2><span class="pball"></span> The Raspberry Pi Hub</h2>
+    <p>The Pi runs several always-on services (each auto-starts on boot):</p>
+    <div class="tw"><table>
+      <tr><th>Service</th><th>Job</th></tr>
+      <tr><td><strong>Mosquitto</strong></td><td>MQTT broker. TCP port 1883 (devices) + WebSocket port 9001 (the app).</td></tr>
+      <tr><td><strong>jamshield-recv</strong> (receiver.py)</td><td>Receives all 3 channels (WiFi via MQTT, BLE via bleak, ESP-NOW mirror), logs to SQLite, and republishes everything to <code>jamshield/feed</code>.</td></tr>
+      <tr><td><strong>jamshield-pwa</strong></td><td>A tiny web server that hosts the phone app on port 8081.</td></tr>
+      <tr><td><strong>cloud bridge</strong></td><td>Mosquitto forwards the data up to HiveMQ cloud over TLS.</td></tr>
+    </table></div>
+    <p>Why unify everything into one <code>jamshield/feed</code> topic? So the app has one simple thing to subscribe to and can watch the channel flip WiFi &rarr; BLE &rarr; ESP-NOW without caring how each arrived.</p>
+    <p>The Pi's Bluetooth was disabled by default on the fresh image; we re-enabled it (removed <code>dtoverlay=disable-bt</code>, installed <code>pi-bluetooth</code>, rebooted) so BLE reception works. Good "gotcha" story for a viva.</p>
+  </section>
+
+  <!-- 13 -->
+  <section id="app">
+    <div class="eyebrow">Pokedex Entry 13</div>
+    <h2><span class="pball"></span> The App (PWA)</h2>
+    <p>A <strong>PWA</strong> (Progressive Web App) is a website that installs like an app. Ours lives in <code>dashboard/pwa/</code> and connects to the Pi's MQTT over WebSockets. It shows the story, not just numbers:</p>
+    <ul>
+      <li><strong>Status</strong>: LINK SECURE / ATTACK DEFEATED / DATA LOST.</li>
+      <li><strong>Live RSSI graph</strong>: a real radio measurement that moves as you move the node.</li>
+      <li><strong>Active channel</strong>: WiFi / BLE / ESP-NOW, flips live during a jam.</li>
+      <li><strong>Metrics</strong>: failover time (outage gap), packets rescued, packets lost.</li>
+      <li><strong>Impact</strong>: protected (HOP) vs unprotected (NO-HOP) side by side.</li>
+      <li><strong>Attack timeline</strong> + tappable packets (tap a packet to see its full JSON + which protocol carried it).</li>
+      <li><strong>Controls</strong>: mode buttons + a jam button (publishes to <code>jamshield/control</code>).</li>
+    </ul>
+    <p>It is three files: <code>index.html</code> (layout + CSS), <code>app.js</code> (MQTT logic), <code>sw.js</code> (service worker so it installs + updates). No build step, no framework, just vanilla JavaScript talking MQTT over WebSockets.</p>
+    <div class="note"><b>Open it:</b> on a device on the same WiFi as the Pi, go to <code>http://&lt;pi-ip&gt;:8081</code> and Add to Home Screen.</div>
+  </section>
+
+  <!-- 14 -->
+  <section id="cloud">
+    <div class="eyebrow">Pokedex Entry 14</div>
+    <h2><span class="pball"></span> The Cloud</h2>
+    <p>To satisfy the "IoT cloud" requirement, the Pi forwards data to <strong>HiveMQ Cloud</strong> (a free hosted MQTT broker). This is a Mosquitto <strong>bridge</strong>: the Pi dials out over TLS (port 8883) and mirrors the topics up. No inbound ports opened on the Pi (safe).</p>
+    <ul>
+      <li><strong>Edge-first, cloud-optional</strong>: everything works locally even with no internet; the cloud is a bonus view from anywhere.</li>
+      <li>One gotcha we hit: a Mosquitto-to-non-Mosquitto bridge needs <code>try_private false</code>, or the cloud accepts then instantly drops the connection.</li>
+    </ul>
+    <p>So all three required IoT boxes are ticked: <strong>MQTT</strong> (the whole spine), a <strong>Web/Mobile app</strong> (the PWA), and an <strong>IoT cloud</strong> (HiveMQ).</p>
+  </section>
+
+  <!-- 15 -->
+  <section id="files">
+    <div class="eyebrow">Pokedex Entry 15</div>
+    <h2><span class="pball"></span> Every File Explained</h2>
+
+    <h3>Node firmware <span class="mut" style="font-size:14px;font-weight:500">src/esp32/</span></h3>
+    <div class="tw"><table>
+      <tr><th>File</th><th>What it does</th></tr>
+      <tr><td><code>src/main.c</code></td><td>Entry point; boots everything in order.</td></tr>
+      <tr><td><code>src/jam_detect.c</code></td><td>The detector (priority 2): samples RSSI + loss, runs the CLEAR/SUSPECTED/CONFIRMED/RECOVERING state machine.</td></tr>
+      <tr><td><code>src/conn_mgr_setup.c</code></td><td>The brain: bearer manager. Picks the active radio, does failover + restore, holds the HOP/NO-HOP/NO-BLE mode.</td></tr>
+      <tr><td><code>src/payload_thread.c</code></td><td>Builds each packet (JSON + 18-byte binary), stamps the sequence number, sends it, prints the <code>STAT</code> line.</td></tr>
+      <tr><td><code>src/sensor_ldr.c</code></td><td>Reads the LDR light sensor via ADC every second.</td></tr>
+      <tr><td><code>src/wifi_mqtt.c</code></td><td>WiFi join + MQTT publish/subscribe; the force-jam flag; receives control commands.</td></tr>
+      <tr><td><code>src/ble_gatt.c</code></td><td>BLE radio (GATT notifications) = 2nd bearer.</td></tr>
+      <tr><td><code>src/espnow_l2.c</code> + <code>espnow_hal.c</code></td><td>ESP-NOW radio = 3rd bearer; <code>_hal</code> injects the raw 802.11 frame.</td></tr>
+      <tr><td><code>src/adaptive_threshold.c</code></td><td>Adjusts detection thresholds based on light level.</td></tr>
+      <tr><td><code>src/control.c</code></td><td>USB serial commands (h/n/e = mode, j/c = jam).</td></tr>
+      <tr><td><code>src/button.c</code></td><td>BOOT button toggles the jam (offline trigger).</td></tr>
+      <tr><td><code>src/esp_ps_shim.c</code></td><td>Turns off WiFi power-save.</td></tr>
+      <tr><td><code>include/jamshield.h</code></td><td>Config: WiFi SSID, broker IP, MQTT topics, the 18-byte payload struct, channel enum.</td></tr>
+      <tr><td><code>prj.conf</code></td><td>Kconfig: which features are compiled in (WiFi, BT, MQTT, logging...).</td></tr>
+      <tr><td><code>boards/...overlay</code></td><td>Devicetree: which pin/ADC the LDR uses.</td></tr>
+      <tr><td><code>CMakeLists.txt</code></td><td>Lists the source files to build.</td></tr>
+    </table></div>
+
+    <h3>Jammer <span class="mut" style="font-size:14px;font-weight:500">src/jammer/</span></h3>
+    <div class="tw"><table>
+      <tr><td><code>src/main.c</code></td><td>Joins the target AP, learns its BSSID, floods deauth on 's', stops on 'x'. Target overridable.</td></tr>
+      <tr><td><code>src/jam_hal.c</code></td><td>Builds + injects the raw deauth frame (<code>esp_wifi_80211_tx</code>).</td></tr>
+    </table></div>
+
+    <h3>ESP-NOW receiver <span class="mut" style="font-size:14px;font-weight:500">src/espnow_rx_arduino/</span></h3>
+    <div class="tw"><table>
+      <tr><td><code>espnow_rx_arduino.ino</code></td><td>Optional Arduino sketch: sniffs the node's ESP-NOW frames in promiscuous mode, prints to USB for a bridge. (Not needed; the MQTT mirror covers the demo.)</td></tr>
+    </table></div>
+
+    <h3>Raspberry Pi <span class="mut" style="font-size:14px;font-weight:500">src/rpi4/</span></h3>
+    <div class="tw"><table>
+      <tr><td><code>receiver.py</code></td><td>The hub service: receives WiFi + BLE + ESP-NOW, logs to DB, republishes to <code>jamshield/feed</code>.</td></tr>
+      <tr><td><code>database.py</code></td><td>SQLite schema + a background writer thread.</td></tr>
+      <tr><td><code>ble_receiver.py / espnow_receiver.py / jammer_control.py</code></td><td>Legacy standalone scripts (not used by the live service).</td></tr>
+    </table></div>
+
+    <h3>App + laptop <span class="mut" style="font-size:14px;font-weight:500">dashboard/</span></h3>
+    <div class="tw"><table>
+      <tr><td><code>dashboard.py</code></td><td>Laptop USB dashboard: reads the node's STAT over serial, controls it, serves a page on :8080.</td></tr>
+      <tr><td><code>pwa/index.html</code></td><td>The phone app UI + all CSS.</td></tr>
+      <tr><td><code>pwa/app.js</code></td><td>App logic: MQTT-over-WebSockets, control room, RSSI graph, metrics.</td></tr>
+      <tr><td><code>pwa/sw.js</code> / <code>manifest.webmanifest</code> / <code>icon.svg</code></td><td>Make it an installable PWA.</td></tr>
+    </table></div>
+
+    <h3>Tooling <span class="mut" style="font-size:14px;font-weight:500">scripts/ + root</span></h3>
+    <div class="tw"><table>
+      <tr><td><code>run.ps1</code></td><td>One command: detect ports + Pi IP, patch, build, flash, dashboard. Flags <code>-rf</code>/<code>-now</code>.</td></tr>
+      <tr><td><code>deploy_iot.ps1</code></td><td>Push the PWA + configs to the Pi.</td></tr>
+      <tr><td><code>scripts/rpi.py</code></td><td>SSH driver (run / putfile / putkey / sudobash).</td></tr>
+      <tr><td><code>scripts/detect_ports.py</code></td><td>Figures out which COM port is node / jammer / esp-now-rx.</td></tr>
+      <tr><td><code>scripts/capture_win.py</code></td><td>Read the node's serial log.</td></tr>
+      <tr><td><code>scripts/*.sh</code></td><td>Build firmware, stage flash images, provision the Pi.</td></tr>
+      <tr><td><code>PRD.md</code> / <code>CLAUDE.md</code> / <code>README.md</code></td><td>Spec/report, build instructions, docs.</td></tr>
+    </table></div>
+  </section>
+
+  <!-- 16 -->
+  <section id="run">
+    <div class="eyebrow">Pokedex Entry 16</div>
+    <h2><span class="pball"></span> Run It Yourself</h2>
+    <ol>
+      <li><strong>Power the Pi</strong>. It auto-joins WiFi and starts all services (~1 min).</li>
+      <li><strong>Power the Node</strong> (and Jammer, if using RF).</li>
+      <li>On the laptop (both ESP32s on USB), run one command:
+        <pre>cd C:\Workspace\IotELL
+.\run.ps1            <span class="cmt"># detect, build, flash both, open dashboard</span>
+.\run.ps1 -rf        <span class="cmt"># RF-jam scenario (WiFi to BLE)</span>
+.\run.ps1 -now       <span class="cmt"># logical-jam scenario (WiFi to ESP-NOW)</span></pre>
+      </li>
+      <li>On your phone (same WiFi), open <code>http://&lt;pi-ip&gt;:8081</code>.</li>
+      <li><strong>Demo</strong>: HOP mode + jam &rarr; channel flips to BLE, data saved. NO-HOP + jam &rarr; data lost.</li>
+    </ol>
+    <div class="warn"><b>Network changed?</b> When WiFi/DHCP changes, the Pi's IP changes and the node's baked-in broker IP goes stale. <code>run.ps1</code> auto-detects the Pi IP and reflashes. If it cannot find it: <code>.\run.ps1 -PiIP 10.x.x.x</code>.</div>
+    <div class="tip"><b>Is it alive?</b> <code>ping prathvi.local</code> for the Pi; the app header says NO BROKER LINK (wrong WiFi), WAITING FOR NODE (node off), or LINK SECURE (working).</div>
+  </section>
+
+  <!-- 17 -->
+  <section id="teacher">
+    <div class="eyebrow">Pokedex Entry 17</div>
+    <h2><span class="pball"></span> Teacher Questions + Small Changes</h2>
+    <p>Examiners love "change this live." Here is exactly where each change lives, so you can do it on the spot and sound like you own the code.</p>
+    <div class="tw"><table>
+      <tr><th>If they ask...</th><th>Change this</th></tr>
+      <tr><td>Send data faster / slower</td><td><code>PAYLOAD_PERIOD_MS</code> in <code>payload_thread.c</code> (500 ms default).</td></tr>
+      <tr><td>Use a different WiFi</td><td><code>JS_WIFI_SSID</code> / <code>JS_WIFI_PSK</code> in <code>jamshield.h</code>.</td></tr>
+      <tr><td>Change the MQTT topic</td><td><code>JS_MQTT_TOPIC</code> in <code>jamshield.h</code>.</td></tr>
+      <tr><td>Add a field to the packet</td><td>The <code>snprintf</code> in <code>payload_thread.c</code> (and the app if you want to show it).</td></tr>
+      <tr><td>Make detection more/less sensitive</td><td><code>MIN_CONFIRM_SAMPLES</code> in <code>jam_detect.c</code>, or thresholds in <code>adaptive_threshold.c</code>.</td></tr>
+      <tr><td>Change the jam auto-expiry (15 s)</td><td>The force-jam timeout in <code>wifi_mqtt.c</code>.</td></tr>
+      <tr><td>Change the BLE device name</td><td><code>JS_BT_DEVICE_NAME</code> in <code>jamshield.h</code>.</td></tr>
+      <tr><td>Change the failover order</td><td><code>trigger_bearer_failover()</code> in <code>conn_mgr_setup.c</code>.</td></tr>
+      <tr><td>Change the sensor pin</td><td>The <code>.overlay</code> file (devicetree), then rebuild.</td></tr>
+      <tr><td>Point the jammer at another AP</td><td><code>.\run.ps1 -JamSsid "MyAP" -JamPsk "..."</code> (a network you own).</td></tr>
+    </table></div>
+    <h3>Concept questions they may ask (short answers)</h3>
+    <ul>
+      <li><strong>Why not just use WiFi?</strong> One radio = one point of failure. Jam it and the sensor goes dark. Multiple radios = resilience.</li>
+      <li><strong>Is the jamming real?</strong> The RF jammer is real deauth. The app button is a logical trigger (simulated attack, real failover). Say which one you are using.</li>
+      <li><strong>Why does it only work on your WiFi?</strong> WPA2 without PMF does not sign management frames. WPA3 / 802.11w defeats deauth.</li>
+      <li><strong>Why Zephyr not Arduino?</strong> Real-time threads + guaranteed timing for detection, plus full WiFi and BLE stacks.</li>
+      <li><strong>How do you know no data was lost?</strong> Every packet has a sequence number; gaps = loss. During HOP failover the sequence stays continuous.</li>
+      <li><strong>How does the node detect a jam?</strong> Two signals: RSSI drop AND MQTT ack loss, sustained for a few samples. Dual-metric avoids false alarms.</li>
+      <li><strong>Where is the cloud?</strong> HiveMQ Cloud via a Mosquitto TLS bridge from the Pi.</li>
+    </ul>
+  </section>
+
+  <!-- 18 -->
+  <section id="glossary">
+    <div class="eyebrow">Pokedex Entry 18</div>
+    <h2><span class="pball"></span> Glossary</h2>
+    <div class="tw"><table>
+      <tr><th>Term</th><th>Plain meaning</th></tr>
+      <tr><td>ESP32</td><td>Cheap microcontroller with WiFi + Bluetooth built in.</td></tr>
+      <tr><td>Firmware</td><td>The one program loaded onto a microcontroller.</td></tr>
+      <tr><td>Flashing</td><td>Writing firmware into the chip over USB.</td></tr>
+      <tr><td>RTOS</td><td>Real-time OS: runs threads with guaranteed timing.</td></tr>
+      <tr><td>Thread</td><td>An independent unit of work the scheduler runs.</td></tr>
+      <tr><td>Bearer</td><td>A radio path used to carry data (WiFi / BLE / ESP-NOW).</td></tr>
+      <tr><td>Failover</td><td>Automatically switching to a backup path when one fails.</td></tr>
+      <tr><td>MQTT</td><td>Lightweight publish/subscribe messaging for IoT.</td></tr>
+      <tr><td>Broker</td><td>The MQTT middleman (Mosquitto) that routes messages.</td></tr>
+      <tr><td>Topic</td><td>A named channel messages are published to / subscribed from.</td></tr>
+      <tr><td>QoS 1</td><td>MQTT delivery with acknowledgement (PUBACK).</td></tr>
+      <tr><td>BLE</td><td>Bluetooth Low Energy: short-range direct radio.</td></tr>
+      <tr><td>ESP-NOW</td><td>Espressif's connectionless radio, no router or pairing.</td></tr>
+      <tr><td>RSSI</td><td>Received signal strength (dBm); how strong the radio link is.</td></tr>
+      <tr><td>Deauth</td><td>A WiFi "disconnect" frame the jammer forges to attack.</td></tr>
+      <tr><td>PMF / 802.11w</td><td>Protected Management Frames: signs deauths, defeats the attack.</td></tr>
+      <tr><td>Devicetree</td><td>Zephyr's way of describing hardware as data (the overlay).</td></tr>
+      <tr><td>Kconfig</td><td>Zephyr feature switches (prj.conf, CONFIG_*).</td></tr>
+      <tr><td>PWA</td><td>A website that installs and behaves like an app.</td></tr>
+      <tr><td>WebSocket</td><td>A browser-friendly transport; carries MQTT to the app.</td></tr>
+      <tr><td>Bridge</td><td>A broker-to-broker link (Pi to HiveMQ cloud).</td></tr>
+    </table></div>
+    <div class="foot">JamShield Pokedex. Built to teach the whole project from zero. Gotta learn it all.</div>
+  </section>
+</main>
+
+<script>
+// mobile menu
+var side=document.getElementById('side'),scrim=document.getElementById('scrim');
+function close(){side.classList.remove('open');scrim.classList.remove('show');}
+document.getElementById('menuBtn').onclick=function(){side.classList.add('open');scrim.classList.add('show');};
+scrim.onclick=close;
+// scrollspy
+var links=[].slice.call(document.querySelectorAll('#nav a'));
+var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));});
+function spy(){
+  var y=window.scrollY+140,cur=0;
+  for(var i=0;i<secs.length;i++){ if(secs[i]&&secs[i].offsetTop<=y) cur=i; }
+  links.forEach(function(a,i){a.classList.toggle('on',i===cur);});
+}
+window.addEventListener('scroll',spy,{passive:true});spy();
+links.forEach(function(a){a.onclick=close;});
+</script>
+</body>
+</html>
