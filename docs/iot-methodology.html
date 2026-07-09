@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JamShield - 10-Step IoT Design Methodology</title>
+<style>
+:root{
+  --bg:#0d1117;--panel:#161b22;--line:rgba(255,255,255,.09);--txt:#e6edf3;--mut:#9aa6b4;
+  --accent:#3fb6a8;--accent2:#f2b84b;--code:#0a0e14;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.62}
+.wrap{max-width:900px;margin:0 auto;padding:0 24px 100px}
+a{color:var(--accent);text-decoration:none}
+/* top */
+header{padding:52px 0 22px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.tag{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
+h1{font-size:33px;font-weight:800;letter-spacing:-.6px;margin:8px 0 10px}
+header p{color:var(--mut);max-width:70ch}
+/* sticky step nav */
+.nav{position:sticky;top:0;z-index:20;background:rgba(13,17,23,.92);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);margin:0 -24px 8px;padding:10px 24px;display:flex;gap:6px;flex-wrap:wrap}
+.nav a{font-family:var(--mono);font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:7px;
+  padding:5px 9px;transition:.14s}
+.nav a:hover{color:var(--txt);border-color:var(--accent)}
+/* step card */
+.step{border-top:1px solid var(--line);padding:34px 0 6px}
+.shead{display:flex;align-items:center;gap:14px}
+.num{width:40px;height:40px;flex:none;border-radius:11px;display:grid;place-items:center;font-weight:800;
+  font-family:var(--mono);font-size:17px;color:#0d1117;background:linear-gradient(150deg,var(--accent),#2b8f84)}
+.shead h2{font-size:22px;font-weight:750;letter-spacing:-.3px}
+.shead .k{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1.5px}
+ul{margin:14px 0 6px 20px}li{margin:6px 0;color:#d3dbe6}
+strong{color:#fff}
+.mut{color:var(--mut)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 6px;margin:16px 0;overflow:auto}
+.cap{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;padding:8px 12px 0}
+.mermaid{padding:10px 8px;display:flex;justify-content:center}
+.tw{overflow-x:auto;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+td code,li code{background:rgba(255,255,255,.07);padding:1px 6px;border-radius:5px;font-size:12.5px;color:#ffd9a8}
+.foot{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px}
+@media(max-width:640px){.wrap{padding:0 16px 80px}h1{font-size:26px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="tag">IoT Design Methodology  -  Bahga &amp; Madisetti, 10 Steps</div>
+  <h1>JamShield: Jamming-Resilient IoT Sensor Node</h1>
+  <p><strong>Problem.</strong> A normal WiFi IoT node has a single radio, so a WiFi jamming attack (deauth flood) silences it completely. <strong>Solution.</strong> JamShield detects the jam in real time and automatically hops across three radios (WiFi &rarr; BLE &rarr; ESP-NOW), keeping telemetry alive. A Raspberry Pi hub unifies all channels and serves a live app + MQTT cloud.</p>
+</header>
+
+<nav class="nav">
+  <a href="#s1">1 Purpose</a><a href="#s2">2 Process</a><a href="#s3">3 Domain</a><a href="#s4">4 Information</a>
+  <a href="#s5">5 Services</a><a href="#s6">6 IoT Level</a><a href="#s7">7 Functional</a><a href="#s8">8 Operational</a>
+  <a href="#s9">9 Integration</a><a href="#s10">10 Application</a>
+</nav>
+
+<!-- 1 -->
+<section class="step" id="s1">
+  <div class="shead"><div class="num">1</div><div><div class="k">Specification</div><h2>Purpose &amp; Requirements</h2></div></div>
+  <ul>
+    <li><strong>Purpose:</strong> keep an IoT sensor reporting during a WiFi denial-of-service (jamming) attack by switching radios automatically.</li>
+    <li><strong>Behaviour:</strong> sense ambient light (LDR on ESP32), publish telemetry, detect jamming, fail over to a backup radio, recover to WiFi when the attack stops.</li>
+    <li><strong>Functional requirements:</strong> real-time detection (&lt; 500 ms), automatic WiFi &rarr; BLE &rarr; ESP-NOW failover, no/minimal packet loss (sequence-tracked), MQTT integration, web/mobile app, IoT cloud.</li>
+    <li><strong>Non-functional:</strong> low latency, high availability, edge-first (works offline), low power, portable firmware, secure and scoped.</li>
+  </ul>
+</section>
+
+<!-- 2 -->
+<section class="step" id="s2">
+  <div class="shead"><div class="num">2</div><div><div class="k">Specification</div><h2>Process</h2></div></div>
+  <ul>
+    <li>Node reads the LDR, builds a packet with a monotonic <strong>sequence number</strong>, and sends it over the currently active radio.</li>
+    <li>A high-priority detector samples <strong>RSSI + MQTT ack-loss every 100 ms</strong> and runs a jam state machine.</li>
+    <li>On a confirmed jam the bearer manager <strong>fails over</strong> to the next radio; on recovery it hops back to WiFi.</li>
+    <li>The Pi receives on any channel, logs it, and republishes a unified feed to the app and cloud.</li>
+  </ul>
+  <div class="card"><div class="cap">Process flow</div>
+  <pre class="mermaid">
+flowchart TD
+  A[LDR sensor read] --> B[Build packet + seq no.]
+  B --> C{Active bearer?}
+  C -->|WiFi| D[Publish MQTT]
+  C -->|BLE| E[GATT notify]
+  C -->|ESP-NOW| F[802.11 vendor frame]
+  G[Jam detector 100 ms<br/>RSSI + loss] --> H{Jammed?}
+  H -->|Yes| I[Fail over to next radio]
+  H -->|Recovered| J[Restore to WiFi]
+  I --> C
+  J --> C
+  D --> K[Raspberry Pi hub]
+  E --> K
+  F --> K
+  K --> L[App + SQLite + Cloud]
+  </pre></div>
+</section>
+
+<!-- 3 -->
+<section class="step" id="s3">
+  <div class="shead"><div class="num">3</div><div><div class="k">Specification</div><h2>Domain Model</h2></div></div>
+  <ul>
+    <li><strong>Physical entities:</strong> ESP32 node, LDR sensor, ESP32 jammer, Raspberry Pi, user device.</li>
+    <li><strong>Virtual entities / resources:</strong> jam-detector FSM, bearer manager, MQTT broker, unified feed, database, PWA, cloud broker.</li>
+    <li><strong>Relationships:</strong> the LDR feeds the node; the detector drives the bearer manager; the jammer attacks WiFi; all radios converge on the Pi; the user controls the node through the app.</li>
+  </ul>
+  <div class="card"><div class="cap">Domain model</div>
+  <pre class="mermaid">
+graph TD
+  U[User] --> APP[PWA / Dashboard]
+  APP -->|control| BM
+  subgraph NODE[ESP32 Node]
+    S[LDR Sensor] --> BM[Bearer Manager]
+    JD[Jam Detector FSM] --> BM
+    BM --> W[WiFi]
+    BM --> BL[BLE]
+    BM --> EN[ESP-NOW]
+  end
+  J[ESP32 Jammer] -. deauth .-> W
+  W --> BR[MQTT Broker]
+  BL --> RX[Pi Receiver]
+  EN --> RX
+  BR --> RX
+  RX --> DB[(SQLite)]
+  RX --> FEED[unified feed]
+  FEED --> APP
+  BR --> CLOUD[HiveMQ Cloud]
+  </pre></div>
+</section>
+
+<!-- 4 -->
+<section class="step" id="s4">
+  <div class="shead"><div class="num">4</div><div><div class="k">Specification</div><h2>Information Model</h2></div></div>
+  <p class="mut">Attributes of the virtual entities. The core is a per-packet telemetry record (18-byte binary on BLE/ESP-NOW, JSON on WiFi).</p>
+  <div class="tw"><table>
+    <tr><th>Attribute</th><th>Type / range</th><th>Meaning</th></tr>
+    <tr><td><code>seq</code></td><td>uint32</td><td>Monotonic packet number (loss detection)</td></tr>
+    <tr><td><code>ts_ms</code></td><td>uint64</td><td>Node uptime timestamp (ms)</td></tr>
+    <tr><td><code>channel</code></td><td>WIFI / BLE / ESPNOW</td><td>Active radio for this packet</td></tr>
+    <tr><td><code>ldr_adc</code></td><td>0-4095</td><td>Raw light reading</td></tr>
+    <tr><td><code>ldr_lux</code></td><td>0-1000+ (x10 int)</td><td>Derived light level</td></tr>
+    <tr><td><code>rssi</code></td><td>-100..0 dBm</td><td>Link signal strength</td></tr>
+    <tr><td><code>jam_state</code></td><td>CLEAR/SUSPECTED/CONFIRMED/RECOVERING</td><td>Detector state</td></tr>
+    <tr><td><code>mode</code></td><td>HOP/NOHOP/NOBLE</td><td>Protection mode</td></tr>
+  </table></div>
+</section>
+
+<!-- 5 -->
+<section class="step" id="s5">
+  <div class="shead"><div class="num">5</div><div><div class="k">Specification</div><h2>Services</h2></div></div>
+  <div class="tw"><table>
+    <tr><th>Service</th><th>Input</th><th>Output</th><th>Endpoint</th></tr>
+    <tr><td>Light sensing</td><td>LDR voltage</td><td>adc / lux</td><td>ADC GPIO34</td></tr>
+    <tr><td>Jam detection</td><td>RSSI, ack-loss</td><td>jam_state</td><td>internal FSM</td></tr>
+    <tr><td>Bearer failover</td><td>jam_state, mode</td><td>active radio</td><td>bearer manager</td></tr>
+    <tr><td>Telemetry publish</td><td>packet</td><td>message</td><td><code>jamshield/sensor/ldr</code></td></tr>
+    <tr><td>Receive + log + feed</td><td>3 channels</td><td>rows + feed</td><td><code>jamshield/feed</code></td></tr>
+    <tr><td>Control</td><td>command</td><td>mode / jam</td><td><code>jamshield/control</code></td></tr>
+    <tr><td>Cloud sync</td><td>topics</td><td>mirrored data</td><td>HiveMQ TLS :8883</td></tr>
+  </table></div>
+</section>
+
+<!-- 6 -->
+<section class="step" id="s6">
+  <div class="shead"><div class="num">6</div><div><div class="k">Specification</div><h2>IoT Level</h2></div></div>
+  <ul>
+    <li><strong>Level 5-style deployment:</strong> constrained nodes at the edge, a <strong>coordinator</strong> (Raspberry Pi) doing local processing + storage, and cloud for remote monitoring.</li>
+    <li>Edge-first: the whole system works on the local network with no internet; the cloud is an optional mirror.</li>
+    <li>Local processing (detection + failover) lives on the node for low latency; aggregation + app + history live on the Pi; global view lives in the cloud.</li>
+  </ul>
+  <div class="card"><div class="cap">Deployment level</div>
+  <pre class="mermaid">
+graph LR
+  subgraph EDGE[Edge / Device]
+    N[ESP32 Node<br/>detect + failover]
+  end
+  subgraph COORD[Coordinator]
+    P[Raspberry Pi<br/>broker + receiver + app + DB]
+  end
+  subgraph CLOUDT[Cloud]
+    H[HiveMQ Cloud]
+  end
+  N -->|WiFi / BLE / ESP-NOW| P
+  P -->|TLS bridge| H
+  Uu[User device] --> P
+  Uu -.-> H
+  </pre></div>
+</section>
+
+<!-- 7 -->
+<section class="step" id="s7">
+  <div class="shead"><div class="num">7</div><div><div class="k">Specification</div><h2>Functional View</h2></div></div>
+  <ul>
+    <li><strong>Device:</strong> LDR, three radios, jammer board.</li>
+    <li><strong>Communication:</strong> MQTT, BLE GATT, ESP-NOW, WebSockets, TLS.</li>
+    <li><strong>Services:</strong> detection, failover, telemetry, receive/log, feed republish.</li>
+    <li><strong>Management:</strong> mode selection (HOP/NO-HOP/NO-BLE), config, port/IP auto-detect.</li>
+    <li><strong>Security:</strong> WPA2 link, TLS to cloud, single-target scoped jammer.</li>
+    <li><strong>Application:</strong> PWA control room, laptop dashboard, cloud view.</li>
+  </ul>
+  <div class="card"><div class="cap">Functional groups</div>
+  <pre class="mermaid">
+graph TD
+  DEV[Device<br/>LDR + radios] --> COMM[Communication<br/>MQTT / BLE / ESP-NOW / WS]
+  COMM --> SVC[Services<br/>detect / failover / republish]
+  SVC --> MGMT[Management<br/>modes + config]
+  SVC --> SEC[Security<br/>TLS / WPA2 / scoped]
+  SVC --> APPG[Application<br/>PWA / cloud / dashboard]
+  </pre></div>
+</section>
+
+<!-- 8 -->
+<section class="step" id="s8">
+  <div class="shead"><div class="num">8</div><div><div class="k">Specification</div><h2>Operational View</h2></div></div>
+  <ul>
+    <li><strong>Node firmware:</strong> Zephyr RTOS on ESP32 (multi-threaded, priority scheduler).</li>
+    <li><strong>Pi services (auto-start):</strong> Mosquitto (MQTT 1883 + WebSocket 9001), receiver, PWA host (:8081), cloud bridge.</li>
+    <li><strong>Protocols:</strong> MQTT QoS 1, BLE GATT notify, ESP-NOW 802.11 vendor frames, WebSockets to the app, TLS to cloud.</li>
+    <li>The sequence below is the live attack-to-recovery cycle the app visualises.</li>
+  </ul>
+  <div class="card"><div class="cap">Attack, failover, recovery sequence</div>
+  <pre class="mermaid">
+sequenceDiagram
+  participant J as Jammer
+  participant N as Node
+  participant P as Pi
+  participant A as App
+  N->>P: telemetry (WiFi / MQTT)
+  P->>A: feed (WIFI) LINK SECURE
+  J->>N: deauth flood
+  N->>N: detect RSSI + loss = CONFIRMED
+  N->>P: telemetry (BLE)
+  P->>A: feed (BLE) ATTACK DEFEATED
+  J-->>N: attack stops
+  N->>N: RECOVERING then CLEAR
+  N->>P: telemetry (WiFi)
+  P->>A: feed (WIFI) restored
+  </pre></div>
+</section>
+
+<!-- 9 -->
+<section class="step" id="s9">
+  <div class="shead"><div class="num">9</div><div><div class="k">Build</div><h2>Device &amp; Component Integration</h2></div></div>
+  <ul>
+    <li><strong>Node ESP32:</strong> LDR voltage divider on <code>GPIO34</code> (ADC); WiFi, BLE and ESP-NOW radios enabled; flashed with the Zephyr firmware.</li>
+    <li><strong>Jammer ESP32:</strong> associates to the target AP and injects deauth frames (authorised, own-network only).</li>
+    <li><strong>Raspberry Pi:</strong> Mosquitto broker, Bluetooth enabled (<code>pi-bluetooth</code>), Python receiver + SQLite, PWA host, and TLS bridge to HiveMQ, all as systemd services.</li>
+    <li><strong>Programming:</strong> firmware built with <code>west</code>, flashed over USB with <code>esptool</code>; one launcher (<code>run.ps1</code>) auto-detects ports + Pi IP, patches config, builds and flashes.</li>
+  </ul>
+</section>
+
+<!-- 10 -->
+<section class="step" id="s10">
+  <div class="shead"><div class="num">10</div><div><div class="k">Build</div><h2>Application Development</h2></div></div>
+  <ul>
+    <li><strong>PWA control room</strong> (installable web/mobile app): live status (LINK SECURE / ATTACK DEFEATED / DATA LOST), real-time RSSI graph, active channel, failover time, packets rescued vs lost, protected-vs-unprotected comparison, tappable packets, and mode + jam controls.</li>
+    <li><strong>Transport:</strong> MQTT over WebSockets to the Pi broker; the app subscribes to the unified feed and publishes control commands.</li>
+    <li><strong>Cloud dashboard:</strong> the same telemetry viewable from anywhere via HiveMQ Cloud.</li>
+    <li><strong>Laptop dashboard:</strong> a USB-serial control panel for reliable, network-independent demos.</li>
+  </ul>
+</section>
+
+<div class="foot">JamShield mapped to the 10-step IoT design methodology (Bahga &amp; Madisetti). Diagrams rendered with Mermaid.</div>
+</div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({
+  startOnLoad:true, theme:'base', securityLevel:'loose',
+  themeVariables:{
+    darkMode:true, background:'#161b22',
+    primaryColor:'#1b2230', primaryTextColor:'#e6edf3', primaryBorderColor:'#3fb6a8',
+    lineColor:'#6b7686', secondaryColor:'#20303a', tertiaryColor:'#20262f',
+    fontFamily:'system-ui', fontSize:'14px',
+    actorBkg:'#1b2230', actorBorder:'#3fb6a8', actorTextColor:'#e6edf3',
+    signalColor:'#9aa6b4', signalTextColor:'#e6edf3', noteBkgColor:'#20303a', noteTextColor:'#e6edf3'
+  }
+});
+</script>
+</body>
+</html>
