@@ -11,12 +11,4 @@ config JS_ESPNOW
 	  bearer manager treats ESP-NOW as unavailable, keeping the WiFi+BLE
 	  failover path fully functional. See PRD.md Section 7.3.
 
-config JS_SENSOR_DHT11
-	bool "Use DHT11 (temperature + humidity) instead of the LDR"
-	default y
-	help
-	  Read a DHT11 on GPIO4 (digital 1-wire) instead of the LDR on GPIO34
-	  (analog ADC). Both can stay wired on their separate pins; this switch
-	  only chooses which the sensor thread reads. Set to n to use the LDR.
-
 source "Kconfig.zephyr"
