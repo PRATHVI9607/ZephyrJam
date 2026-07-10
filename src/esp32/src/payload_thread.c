@@ -97,10 +97,14 @@ static void payload_thread_fn(void *p1, void *p2, void *p3)
 
 		int n = snprintf(json, sizeof(json),
 			"{\"seq\":%u,\"ts_ms\":%llu,\"channel\":\"%s\","
-			"\"ldr_adc\":%u,\"ldr_lux\":%u.%u,\"rssi\":%d,"
+			"\"ldr_adc\":%u,\"ldr_lux\":%u.%u,\"temp_c\":%d.%u,"
+			"\"humidity\":%u,\"rssi\":%d,"
 			"\"cpu_util\":%u,\"free_heap\":%u,\"jam_state\":\"%s\"}",
 			seq, ts, js_channel_str(ch), ldr.adc_raw,
-			lux_x10 / 10U, lux_x10 % 10U, rssi, cpu, 0U,
+			lux_x10 / 10U, lux_x10 % 10U,
+			ldr.temp_c10 / 10, (unsigned)(ldr.temp_c10 < 0 ?
+				(-ldr.temp_c10) % 10 : ldr.temp_c10 % 10),
+			ldr.humidity, rssi, cpu, 0U,
 			jam_state_str(js));
 
 		int rc = -1;

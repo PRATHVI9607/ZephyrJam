@@ -11,8 +11,10 @@
 #include <stdint.h>
 
 struct ldr_reading {
-	uint16_t adc_raw;      /* 0-4095, 12-bit */
-	uint32_t timestamp_ms; /* k_uptime_get() at read time */
+	uint16_t adc_raw;      /* LDR: 0-4095 12-bit.  DHT11: temperature in C   */
+	int16_t  temp_c10;     /* DHT11 temperature x10 (0 in LDR mode)          */
+	uint8_t  humidity;     /* DHT11 relative humidity %  (0 in LDR mode)     */
+	uint32_t timestamp_ms; /* k_uptime_get() at read time                    */
 };
 
 /* Initialize the ADC channel and start the sensor thread. Returns 0 on ok. */

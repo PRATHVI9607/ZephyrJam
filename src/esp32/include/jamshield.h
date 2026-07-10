@@ -41,7 +41,7 @@ BUILD_ASSERT(sizeof(struct ble_sensor_payload) == 18,
 /* ---- Project-wide configuration ----------------------------------------- */
 #define JS_WIFI_SSID        "loki"
 #define JS_WIFI_PSK         "loki2536"
-#define JS_MQTT_BROKER_IP   "10.231.43.137"  /* RPi4 on the LAN (broker) */
+#define JS_MQTT_BROKER_IP   "10.212.77.136"  /* RPi4 on the LAN (broker) */
 #define JS_MQTT_BROKER_PORT 1883
 #define JS_MQTT_TOPIC       "jamshield/sensor/ldr"
 #define JS_MQTT_EVENT_TOPIC "jamshield/events/failover"

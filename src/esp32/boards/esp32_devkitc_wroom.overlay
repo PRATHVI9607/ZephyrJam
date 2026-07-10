@@ -11,6 +11,14 @@
 		io-channels = <&adc0 6>;
 	};
 
+	/* DHT11 digital 1-wire on GPIO4 (separate pin from the LDR). Both sensors
+	 * can be wired at once; CONFIG_JS_SENSOR_DHT11 chooses which one is read. */
+	dht11: dht11 {
+		compatible = "aosong,dht";
+		status = "okay";
+		dio-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+	};
+
 	aliases {
 		led0 = &led_builtin;
 		sw0 = &boot_button;
